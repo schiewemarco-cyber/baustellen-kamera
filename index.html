@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#e8a038">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Baustellen-Kamera</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.27.0/lib/msal-browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.min.js"></script>
+<style>
+/* Bewusst nur helles Firmendesign wie h-s-bau.de (kräftig, auch in der Sonne gut lesbar).
+   Layout: H.S. Schulz – oranger Streifen, grüner Kopf mit Logo-Kachel, Inhalt in einer Spalte, grüner Auslöser fest unten */
+:root{
+  --bg:#ffffff; --surface:#ffffff; --field:#f2f4f1; --ink:#1b1d1a; --muted:#5d675c; --line:#d3dbd1;
+  --brand:#41934a; --brand-ink:#ffffff; --brand-text:#2e7d37;
+  --accent:#e8a038; --accent-ink:#ffffff; --rule:#000000;
+  --ok:#2e8a3f; --warn:#b07a12; --bad:#c4302f;
+  --f-display:"Barlow","Arial",system-ui,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.45 var(--f-body);padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))}
+.topbar{background:var(--accent);height:calc(8px + env(safe-area-inset-top,0px))}
+.band{background:var(--brand);color:var(--brand-ink);padding-bottom:22px!important;
+  padding:14px max(16px,env(safe-area-inset-right,0px)) 14px max(16px,env(safe-area-inset-left,0px))}
+header{max-width:640px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px 14px;flex-wrap:wrap}
+header h1{order:3;flex:1 1 100%!important}
+.logo{height:40px;width:auto;display:block;flex:none}
+header h1{font:700 26px/1.05 var(--f-display);margin:0;flex:1;min-width:0}
+header h1 small{display:block;margin-top:4px;font:700 12px/1.3 var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.band .kst{max-width:640px;margin:16px auto 0;padding:16px 0 4px 14px;border-left:2px solid var(--rule);display:flex;flex-direction:column;gap:10px}
+.band .label{color:#fff;letter-spacing:.2em}
+.band .link{color:#fff}
+.band select{background:#fff;color:#1b1d1a;border:0;font-weight:600}
+.band .sub{color:rgba(255,255,255,.92)}
+.band .newfolder{display:flex;flex-direction:column;gap:8px;background:rgba(0,0,0,.18);padding:12px;border-radius:2px}
+.band .newfolder input{background:#fff;color:#1b1d1a;border:0}
+.band .newfolder .btn{background:#fff;color:#1b1d1a;border:0}
+.band .newfolder .btn.primary{background:var(--accent);color:#fff}
+.wrap{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:14px;
+  padding:16px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px))}
+.iconbtn{width:44px;height:44px;border-radius:2px;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer;flex:none}
+.band .iconbtn{background:transparent;border:2px solid rgba(255,255,255,.9);color:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font:600 14px/1.2 var(--f-display);color:var(--ink)}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.chip.ok i{background:var(--ok)} .chip.warn i{background:var(--warn)} .chip.bad i{background:var(--bad)}
+button.chip{cursor:pointer}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.label{font:700 12px/1 var(--f-display);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.utm{font:600 clamp(18px,5.4vw,24px)/1.25 var(--f-mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.utm span{color:var(--muted);font-weight:500}
+.sub{font:500 13px/1.4 var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.grid{display:grid;grid-template-columns:1fr 92px;gap:8px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font:700 12px/1 var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+input[type=text],input[type=url],input[type=password],select{width:100%;min-width:0;font:16px/1.3 var(--f-body);padding:10px 11px;border-radius:2px;border:1px solid var(--line);background:var(--field);color:var(--ink)}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.link{background:none;border:0;padding:0;color:var(--brand-text);font:700 15px var(--f-display);cursor:pointer;text-decoration:none}
+.link::after{content:" »"}
+.banner{border-left:5px solid var(--accent);background:var(--surface);border-radius:2px;padding:12px 14px;font-size:15px}
+.preview img{width:100%;max-width:100%;border-radius:2px;display:block;border:1px solid var(--line)}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{flex:1 1 auto;min-height:46px;padding:10px 14px;border-radius:2px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:700 17px var(--f-display);cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary::after{content:" »"}
+.list{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+.item{display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:center}
+.item img{width:64px;height:64px;object-fit:cover;border-radius:2px;background:var(--bg)}
+.item .nm{font:500 13px/1.3 var(--f-mono);overflow-wrap:anywhere;min-width:0}
+.item .er{font-size:13px;color:var(--bad)}
+.pill{font:700 12px/1 var(--f-display);letter-spacing:.1em;text-transform:uppercase;padding:5px 8px;border-radius:2px;border:1px solid currentColor;white-space:nowrap}
+.pill.ok{color:var(--ok)} .pill.wait{color:var(--warn)} .pill.err{color:var(--bad)} .pill.run{color:var(--brand-text)}
+.empty{color:var(--muted);font-size:15px}
+.inrow{display:flex;gap:8px;align-items:stretch}
+.inrow input{flex:1}
+.steps{display:flex;flex-wrap:wrap;gap:6px}
+.step{padding:9px 12px;border:2px solid var(--line);border-radius:2px;background:var(--surface);font:700 15px var(--f-display);cursor:pointer;color:var(--ink)}
+.step.done{border-color:var(--brand);color:var(--brand-text)}
+.step.done::before{content:"✓ "}
+.step.cur{background:var(--brand);border-color:var(--brand);color:#fff}
+.warnline{color:var(--bad);font-size:14px;font-weight:600}
+textarea{width:100%;min-width:0;font:16px/1.4 var(--f-body);padding:10px 11px;border-radius:2px;border:1px solid var(--line);background:var(--field);color:var(--ink);resize:vertical}
+.shutter{position:fixed;left:0;right:0;bottom:0;z-index:5;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-top:1px solid var(--line);
+  padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.shutter button{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;max-width:640px;margin:0 auto;min-height:64px;border:0;border-radius:2px;background:var(--accent);color:#fff;font:700 clamp(18px,5vw,24px)/1.15 var(--f-display);cursor:pointer;padding:6px 14px;text-align:left}
+#haBox{display:flex;flex-direction:column;gap:10px}
+.shutter button[disabled]{opacity:.6}
+dialog{width:min(640px,100%);max-height:92dvh;border:1px solid var(--line);border-top:6px solid var(--brand);border-radius:3px;padding:0;background:var(--surface);color:var(--ink)}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+dialog form{display:flex;flex-direction:column;gap:14px;padding:18px max(16px,env(safe-area-inset-right,0px)) 18px max(16px,env(safe-area-inset-left,0px))}
+dialog h2{font:700 24px var(--f-display);margin:0}
+dialog h3{font:700 13px var(--f-display);letter-spacing:.16em;text-transform:uppercase;margin:8px 0 0;color:var(--muted)}
+.check{display:flex;gap:10px;align-items:center;font-size:16px}
+.check input{width:22px;height:22px;accent-color:var(--brand)}
+.help{font-size:14px;color:var(--muted)}
+.help code{font:500 12px var(--f-mono);background:var(--bg);padding:1px 4px;border-radius:2px;overflow-wrap:anywhere}
+.status{font-size:15px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:2px;font-size:15px;z-index:20;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:no-preference){.btn,.shutter button{transition:transform .08s}.btn:active,.shutter button:active{transform:scale(.98)}}
+</style>
+</head>
+<body>
+<div class="topbar"></div>
+<div class="band">
+  <header>
+    <img class="logo" alt="H.S. Schulz" src="data:image/jpeg;base64,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">
+    <h1>Baustellen-Kamera<small id="projLabel">Keine Kostenstelle gewählt</small></h1>
+    <button class="iconbtn" id="openSettings" aria-label="Einstellungen">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </header>
+  <section class="kst" aria-labelledby="kstHead">
+    <div class="row"><span class="label" id="kstHead">Baustelle · Kostenstelle</span><button class="link" id="reloadTeams">Teams neu laden</button></div>
+    <select id="kstSel" aria-labelledby="kstHead"><option value="">– Kostenstelle wählen –</option></select>
+    <div class="row"><label class="label" for="folderSel" id="folderHead">Ordner</label><button class="link" id="reloadFolders">Ordner neu laden</button></div>
+    <select id="folderSel"></select>
+    <button type="button" class="link" id="newFolderBtn">Neuer Ordner</button>
+    <div id="newFolderBox" class="newfolder" hidden>
+      <label class="label" for="newFolderName">Name des neuen Ordners</label>
+      <input type="text" id="newFolderName" maxlength="80" autocomplete="off" placeholder="z. B. BA 3 oder Mängel">
+      <div class="btns"><button type="button" class="btn" id="newFolderCancel">Abbrechen</button><button type="button" class="btn primary" id="newFolderOk">Anlegen</button></div>
+      <div class="sub" id="newFolderMsg"></div>
+    </div>
+    <div class="sub" id="kstTarget">Nach der Anmeldung erscheinen hier deine Teams.</div>
+  </section>
+</div>
+<div class="wrap">
+
+  <div class="chips" aria-live="polite">
+    <span class="chip" id="chipGps"><i></i><span>GPS wird gesucht …</span></span>
+    <button type="button" class="chip" id="chipCompass"><i></i><span>Kompass …</span></button>
+    <button type="button" class="chip" id="chipCloud"><i></i><span>Upload nicht eingerichtet</span></button>
+    <span class="chip" id="chipQueue"><i></i><span>0 wartend</span></span>
+  </div>
+
+  <div class="banner" id="setupBanner" hidden><span id="bannerText">Upload in Teams ist noch nicht eingerichtet. Fotos werden auf dem Gerät gesammelt und später hochgeladen.</span> <button class="link" id="bannerSettings">Jetzt einrichten</button></div>
+
+
+  <section class="panel" aria-labelledby="locHead">
+    <div class="row"><span class="label" id="locHead">Aktueller Standort · UTM (ETRS89/WGS84)</span><span class="sub" id="acc"></span></div>
+    <div class="utm" id="utm">— warte auf GPS —</div>
+    <div class="sub" id="latlon"></div>
+    <div class="grid">
+      <div class="field"><label for="fStreet">Straße</label><input type="text" id="fStreet" autocomplete="off"></div>
+      <div class="field"><label for="fNo">Nr.</label><input type="text" id="fNo" autocomplete="off" inputmode="text"></div>
+      <div class="field"><label for="fCity">Ort</label><input type="text" id="fCity" autocomplete="off"></div>
+      <div class="field"><label for="fZip">PLZ</label><input type="text" id="fZip" autocomplete="off" inputmode="numeric"></div>
+    </div>
+    <div class="row"><span class="sub" id="addrSrc">Adresse wird automatisch ermittelt</span><button class="link" id="addrAuto" hidden>Wieder automatisch</button></div>
+  </section>
+
+  <section class="panel" aria-labelledby="noteHead">
+    <span class="label" id="noteHead">Foto-Angaben</span>
+    <div class="field"><label for="fNote">Notiz (steht im Stempel und im Dateinamen)</label>
+      <div class="inrow"><input type="text" id="fNote" maxlength="80" autocomplete="off" placeholder="z. B. HA Muffe gesetzt, Tiefe 0,60 m"><button type="button" class="iconbtn" id="noteClear" aria-label="Notiz löschen">✕</button></div>
+    </div>
+    <div class="field"><label for="seriesSel">Fotoreihe / Nachweis</label><select id="seriesSel"></select></div>
+    <div id="haBox" hidden>
+      <div class="steps" id="haSteps"></div>
+      <div class="field" id="measBox" hidden><label for="fMeas" id="measLabel">Messwert</label><input type="text" id="fMeas" inputmode="decimal" autocomplete="off" placeholder="z. B. 12"></div>
+      <div class="sub" id="haInfo"></div>
+      <div class="warnline" id="haWarn" hidden></div>
+    </div>
+  </section>
+
+  <section class="panel preview" id="previewPanel" hidden>
+    <span class="label">Letztes Foto</span>
+    <img id="previewImg" alt="Letztes Foto mit Stempel">
+    <div class="btns">
+      <button class="btn" id="btnShare">Speichern / Teilen</button>
+      <button class="btn primary" id="btnUpload">Jetzt hochladen</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="row"><span class="label">Verlauf</span><button class="link" id="btnRetry">Alle wartenden hochladen</button></div>
+    <ul class="list" id="list"><li class="empty">Noch keine Fotos. Tippe unten auf „Foto aufnehmen“.</li></ul>
+  </section>
+</div>
+
+<div class="shutter">
+  <button id="btnShoot"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Foto aufnehmen</button>
+  <input type="file" id="fileIn" accept="image/*" capture="environment" hidden>
+</div>
+
+<dialog id="dlg">
+  <form method="dialog" id="setForm">
+    <div class="row"><h2>Einstellungen</h2><button class="iconbtn" value="close" aria-label="Schließen">✕</button></div>
+
+    <h3>Ablage in Teams</h3>
+    <div class="field"><label for="sTarget">Name des Zielordners im Team</label><input type="text" id="sTarget" placeholder="Bilder & Doku"></div>
+    <p class="help">Das Tool sucht diesen Ordner im Team der gewählten Kostenstelle (in der Dateiablage und in den Kanal-Ordnern) und merkt ihn sich.</p>
+    <div class="field"><label for="sFolderDef">Standard-Ordner für neue Kostenstellen</label><select id="sFolderDef"><option value="street">Automatisch nach Straße</option><option value="root">Direkt in den Zielordner</option></select></div>
+    <label class="check"><input type="checkbox" id="sDay"> Darin zusätzlich Unterordner pro Tag (JJJJ-MM-TT)</label>
+    <label class="check"><input type="checkbox" id="sAuto"> Automatisch hochladen nach jeder Aufnahme</label>
+    <p class="help" id="entraLocked" hidden>Die Microsoft-Anmeldung ist für alle Nutzer zentral eingerichtet. Einfach anmelden und die Kostenstelle wählen.</p>
+    <div id="entraFields" style="display:contents">
+    <div class="field"><label for="sClient">Anwendungs-ID (Client-ID) aus Microsoft Entra</label><input type="text" id="sClient" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
+    <div class="field"><label for="sTenant">Verzeichnis-ID (Tenant-ID)</label><input type="text" id="sTenant" placeholder="organizations"></div>
+    </div>
+    <p class="help" id="entraHelp">Weiterleitungs-URI für die App-Registrierung (Plattform „Single-Page-Anwendung“): <code id="redirUri"></code> <button type="button" class="link" id="copyUri">Kopieren</button><br>API-Berechtigungen: Microsoft Graph → Delegiert → <code>Files.ReadWrite.All</code> und <code>Team.ReadBasic.All</code></p>
+    <div class="btns">
+      <button type="button" class="btn" id="btnLogin">Bei Microsoft anmelden</button>
+      <button type="button" class="btn" id="btnTest">Zielordner prüfen</button>
+    </div>
+    <div class="status" id="setStatus"></div>
+
+    <h3>Fotos</h3>
+    <div class="field"><label for="sSeries">Fotoreihen</label><textarea id="sSeries" rows="9"></textarea></div>
+    <button type="button" class="link" id="seriesReset">Fotoreihen auf Vorgabe zurücksetzen</button>
+    <p class="help">Eine Zeile mit <code>#</code> beginnt eine neue Fotoreihe, darunter ein Schritt pro Zeile. Eine Reihe mit nur einem Schritt ist ein Einzel-Nachweis ohne Schrittfolge. Mit <code>| Stärke (cm)</code> hinter einem Schritt fragt die App einen Messwert ab, der im Foto und im Dateinamen steht.</p>
+    <label class="check"><input type="checkbox" id="sOrig"> Originalfoto ohne Stempel zusätzlich hochladen (Unterordner „Originale“)</label>
+    <label class="check"><input type="checkbox" id="sLogo"> Firmenlogo im Stempel</label>
+
+    <h3>Karte &amp; Adresse</h3>
+    <div class="field"><label for="sKey">Google-Maps-API-Schlüssel (optional)</label><input type="password" id="sKey" placeholder="leer = OpenStreetMap"></div>
+    <p class="help">Mit Schlüssel: Google-Karte (Maps Static API) und Google-Adresssuche (Geocoding API). Ohne Schlüssel: OpenStreetMap, kostenlos.</p>
+    <div class="field"><label for="sMap">Kartenart (nur Google)</label><select id="sMap"><option value="roadmap">Straßenkarte</option><option value="hybrid">Satellit mit Straßen</option><option value="satellite">Satellit</option></select></div>
+    <div class="field"><label for="sQual">Bildqualität</label><select id="sQual"><option value="0.92">Hoch (große Dateien)</option><option value="0.85">Standard</option><option value="0.75">Klein (schneller Upload)</option></select></div>
+
+    <div class="btns"><button class="btn primary" value="save" id="btnSave">Speichern</button></div>
+  </form>
+</dialog>
+
+<script>
+"use strict";
+/* =====================================================================
+   ZENTRALE EINSTELLUNGEN – EINMAL VOM ADMIN AUSFÜLLEN
+   Was hier steht, gilt für alle Nutzer. Die Nutzer sehen diese Felder
+   nicht mehr, sie melden sich nur an und wählen die Kostenstelle.
+   Client-ID und Tenant-ID sind keine Geheimnisse.
+   ===================================================================== */
+const CONFIG={
+  clientId:"",                 // Anwendungs-ID (Client-ID) aus Microsoft Entra
+  tenantId:"",                 // Verzeichnis-ID (Tenant-ID) aus Microsoft Entra
+  targetName:"Bilder & Doku",  // Zielordner im Team
+  folderDefault:"street",      // "street" = Unterordner pro Straße, "root" = direkt in den Zielordner
+  dayFolder:false,             // zusätzlich Unterordner pro Tag
+  autoUpload:true,             // automatisch hochladen
+  gkey:"",                     // optional: Google-Maps-API-Schlüssel
+  // Fotoreihen: "# Name" beginnt eine Reihe, "Schritt | Messwert (Einheit)" fragt einen Wert ab
+  series:`# Hausanschluss Westnetz
+Abzweig im Graben
+Einführung außen am Haus
+Einführung innen im Haus
+# Nachweis Oberflächenstärke
+Oberflächenstärke | Stärke (cm)`,
+  uploadOriginal:true,         // Originalfoto zusätzlich hochladen
+  logoInStamp:true             // Firmenlogo im Stempel
+};
+/* ===================================================================== */
+
+/* ---------- Speicher ---------- */
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const DEF={kst:null,teams:[],folders:{},targetName:"Bilder & Doku",folderDefault:"street",prefs:{},subfolders:{},dayFolder:false,clientId:"",tenantId:"organizations",gkey:"",mapType:"roadmap",autoUpload:true,quality:0.85,seriesText:"",uploadOriginal:true,logoInStamp:true};
+const LOCKED=!!CONFIG.clientId;
+let S=Object.assign({},DEF,{targetName:CONFIG.targetName||DEF.targetName,folderDefault:CONFIG.folderDefault||"street",dayFolder:CONFIG.dayFolder,autoUpload:CONFIG.autoUpload,seriesText:CONFIG.series||"",uploadOriginal:CONFIG.uploadOriginal,logoInStamp:CONFIG.logoInStamp},LS.get("bk.settings",{}));
+if(LOCKED){S.clientId=CONFIG.clientId.trim();S.tenantId=(CONFIG.tenantId||"organizations").trim()}
+if(CONFIG.gkey)S.gkey=CONFIG.gkey;
+/* Fotoreihen: zentrale Vorgabe gilt, außer der Nutzer hat sie selbst geändert */
+if(!S.seriesCustom)S.seriesText=CONFIG.series||"";
+const saveS=()=>LS.set("bk.settings",S);
+const $=s=>document.querySelector(s);
+
+const DB={mem:new Map(),db:null,failed:false,
+  async open(){if(this.db||this.failed)return this.db;try{this.db=await new Promise((res,rej)=>{const r=indexedDB.open("baustellenkamera",1);r.onupgradeneeded=()=>r.result.createObjectStore("items",{keyPath:"id"});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}catch(e){this.failed=true}return this.db},
+  async run(mode,fn){const db=await this.open();if(!db)return fn(null);return new Promise((res,rej)=>{const t=db.transaction("items",mode);const rq=fn(t.objectStore("items"));t.oncomplete=()=>res(rq&&rq.result);t.onerror=()=>rej(t.error)})},
+  put(it){return this.run("readwrite",s=>s?s.put(it):void this.mem.set(it.id,it))},
+  async all(){const r=await this.run("readonly",s=>s?s.getAll():null);return r||[...this.mem.values()]},
+  del(id){return this.run("readwrite",s=>s?s.delete(id):void this.mem.delete(id))}};
+
+/* ---------- Hilfsfunktionen ---------- */
+const pad=n=>String(n).padStart(2,"0");
+const fmtDate=d=>`${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()}`;
+const fmtTime=d=>`${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+const isoDay=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const DIRS=["N","NNO","NO","ONO","O","OSO","SO","SSO","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const dirName=h=>DIRS[Math.round(h/22.5)%16];
+const grp=n=>String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g," ");
+function toast(msg){const t=document.createElement("div");t.className="toast";t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3200)}
+function setChip(id,text,state){const c=$(id);c.className="chip"+(state?" "+state:"");c.querySelector("span").textContent=text}
+function dist(a,b){const R=6371000,r=Math.PI/180,dl=(b.lat-a.lat)*r,dn=(b.lon-a.lon)*r;const x=Math.sin(dl/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
+/* Dateiname: Umlaute bleiben erhalten, nur in Teams/OneDrive verbotene Zeichen werden ersetzt */
+const safe=s=>(s||"").normalize("NFC").replace(/["*:<>?\/\\|#%~&{}]+/g,"").replace(/\s+/g,"-").replace(/-+/g,"-").replace(/^[-.]+|[-.]+$/g,"").slice(0,60);
+
+/* ---------- UTM (WGS84 ≈ ETRS89) ---------- */
+function toUTM(lat,lon){
+  let zone=Math.floor((lon+180)/6)+1;
+  if(lat>=56&&lat<64&&lon>=3&&lon<12)zone=32;
+  if(lat>=72&&lat<84){if(lon>=0&&lon<9)zone=31;else if(lon<21)zone=33;else if(lon<33)zone=35;else if(lon<42)zone=37}
+  const band="CDEFGHJKLMNPQRSTUVWXX"[Math.max(0,Math.min(20,Math.floor((lat+80)/8)))];
+  const a=6378137,f=1/298.257223563,k0=0.9996,e2=f*(2-f),ep2=e2/(1-e2);
+  const r=Math.PI/180,phi=lat*r,lam=lon*r,lam0=((zone-1)*6-180+3)*r;
+  const s=Math.sin(phi),c=Math.cos(phi),t=Math.tan(phi);
+  const N=a/Math.sqrt(1-e2*s*s),T=t*t,C=ep2*c*c,A=c*(lam-lam0);
+  const e4=e2*e2,e6=e4*e2;
+  const M=a*((1-e2/4-3*e4/64-5*e6/256)*phi-(3*e2/8+3*e4/32+45*e6/1024)*Math.sin(2*phi)+(15*e4/256+45*e6/1024)*Math.sin(4*phi)-(35*e6/3072)*Math.sin(6*phi));
+  const E=k0*N*(A+(1-T+C)*A**3/6+(5-18*T+T*T+72*C-58*ep2)*A**5/120)+500000;
+  let No=k0*(M+N*t*(A*A/2+(5-T+9*C+4*C*C)*A**4/24+(61-58*T+T*T+600*C-330*ep2)*A**6/720));
+  if(lat<0)No+=10000000;
+  return {zone,band,E,N:No};
+}
+
+/* ---------- GPS ---------- */
+let pos=null,lastGeo=null,geoBusy=false;
+function startGPS(){
+  if(!navigator.geolocation||!window.isSecureContext){setChip("#chipGps",window.isSecureContext?"Kein GPS":"GPS nur über HTTPS","bad");return}
+  navigator.geolocation.watchPosition(p=>{
+    pos={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy,alt:p.coords.altitude};
+    renderPos();maybeGeocode();
+  },e=>setChip("#chipGps",e.code===1?"GPS-Zugriff verweigert":"GPS-Fehler","bad"),{enableHighAccuracy:true,maximumAge:3000,timeout:30000});
+}
+function renderPos(){
+  if(!pos)return;
+  const u=toUTM(pos.lat,pos.lon),acc=Math.round(pos.acc);
+  $("#utm").innerHTML=`${u.zone}${u.band} <span>E</span> ${grp(u.E)} <span>N</span> ${grp(u.N)}`;
+  $("#latlon").textContent=`${pos.lat.toFixed(6)}° N · ${pos.lon.toFixed(6)}° E`;
+  $("#acc").textContent=`± ${acc} m`;
+  setChip("#chipGps",`GPS ± ${acc} m`,acc<=15?"ok":acc<=50?"warn":"bad");
+}
+
+/* ---------- Adresse ---------- */
+let addr=LS.get("bk.addr",{street:"",no:"",zip:"",city:""}),addrManual=LS.get("bk.addrManual",false);
+const AF={street:"#fStreet",no:"#fNo",zip:"#fZip",city:"#fCity"};
+function fillAddr(){for(const k in AF)$(AF[k]).value=addr[k]||"";renderTarget();if(typeof renderHA==="function"&&$("#haBox"))renderHA();$("#addrAuto").hidden=!addrManual;$("#addrSrc").textContent=addrManual?"Adresse von Hand eingetragen":(addr.street||addr.city?"Adresse automatisch ermittelt – bitte prüfen":"Adresse wird automatisch ermittelt")}
+for(const k in AF)$(AF[k]).addEventListener("input",e=>{addr[k]=e.target.value;addrManual=true;LS.set("bk.addr",addr);LS.set("bk.addrManual",true);$("#addrAuto").hidden=false;$("#addrSrc").textContent="Adresse von Hand eingetragen";renderTarget();renderHA()});
+$("#addrAuto").onclick=()=>{addrManual=false;LS.set("bk.addrManual",false);lastGeo=null;maybeGeocode(true)};
+async function maybeGeocode(force){
+  if(!pos||addrManual||geoBusy||!navigator.onLine)return;
+  if(!force&&lastGeo&&dist(lastGeo,pos)<25&&Date.now()-lastGeo.t<120000)return;
+  if(!force&&lastGeo&&Date.now()-lastGeo.t<4000)return;
+  geoBusy=true;lastGeo={lat:pos.lat,lon:pos.lon,t:Date.now()};
+  try{const a=await reverseGeocode(pos.lat,pos.lon);if(!addrManual&&a){addr=a;LS.set("bk.addr",addr);fillAddr()}}
+  catch(e){$("#addrSrc").textContent="Adresse konnte nicht ermittelt werden – bitte von Hand eintragen"}
+  finally{geoBusy=false}
+}
+async function reverseGeocode(lat,lon){
+  if(S.gkey){try{
+    const r=await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&language=de&key=${encodeURIComponent(S.gkey)}`);
+    const j=await r.json();
+    if(j.status==="OK"&&j.results.length){const c=j.results[0].address_components,g=t=>(c.find(x=>x.types.includes(t))||{}).long_name||"";
+      return {street:g("route"),no:g("street_number"),zip:g("postal_code"),city:g("locality")||g("postal_town")||g("administrative_area_level_3")}}
+  }catch(e){}}
+  const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=de`);
+  if(!r.ok)throw new Error("geocode");
+  const a=(await r.json()).address||{};
+  return {street:a.road||a.pedestrian||a.footway||a.path||a.construction||"",no:a.house_number||"",zip:a.postcode||"",city:a.city||a.town||a.village||a.municipality||""};
+}
+
+/* ---------- Notiz, Fotoreihen & Ordnerwahl pro Kostenstelle ---------- */
+S.note=LS.get("bk.note","");S.meas="";
+if(!S.prefs)S.prefs={};if(!S.subfolders)S.subfolders={};
+let HA=LS.get("bk.ha",{key:"",idx:0,done:[]});
+function curPref(){const id=S.kst?S.kst.id:"_";if(!S.prefs[id])S.prefs[id]={folder:S.folderDefault==="root"?"__root":"__street",series:""};return S.prefs[id]}
+function profiles(){const out=[];let cur=null;
+  for(const raw of (S.seriesText||"").split("\n")){const l=raw.trim();if(!l)continue;
+    if(l.startsWith("#")){cur={name:l.replace(/^#+\s*/,""),steps:[]};out.push(cur);continue}
+    if(!cur){cur={name:"Fotoreihe",steps:[]};out.push(cur)}
+    const parts=l.split("|").map(x=>x.trim()),lab=parts[1]||"",m=lab.match(/^(.*?)\s*\(([^)]*)\)\s*$/);
+    cur.steps.push({name:parts[0],label:m?m[1]:lab,unit:m?m[2]:""})}
+  return out.filter(p=>p.steps.length)}
+function curSeries(){const n=curPref().series;return n?profiles().find(p=>p.name===n)||null:null}
+const haKey=ser=>[addr.street,addr.no,addr.city].map(x=>(x||"").trim().toLowerCase()).join("|")+"|"+ser.name;
+function haSync(ser){if(HA.key!==haKey(ser)){HA={key:haKey(ser),idx:0,done:[]};LS.set("bk.ha",HA)}}
+function curStep(ser){return ser.steps[Math.min(HA.idx,ser.steps.length-1)]}
+function renderHA(){
+  const ser=curSeries(),sel=$("#seriesSel");sel.textContent="";
+  const o=document.createElement("option");o.value="";o.textContent="Keine – einzelne Fotos";sel.appendChild(o);
+  for(const p of profiles()){const op=document.createElement("option");op.value=p.name;op.textContent=p.steps.length>1?`${p.name} (${p.steps.length} Fotos)`:p.name;sel.appendChild(op)}
+  sel.value=ser?ser.name:"";$("#haBox").hidden=!ser;
+  if(ser){haSync(ser);const box=$("#haSteps");box.textContent="";box.hidden=ser.steps.length<2;
+    ser.steps.forEach((st,i)=>{const b=document.createElement("button");b.type="button";b.className="step"+(i===HA.idx?" cur":"")+(HA.done.includes(i)?" done":"");b.textContent=`${i+1} ${st.name}`;
+      b.onclick=()=>{HA.idx=i;LS.set("bk.ha",HA);renderHA()};box.appendChild(b)});
+    const step=curStep(ser);
+    $("#measBox").hidden=!step.label;
+    if(step.label)$("#measLabel").textContent=`${step.label}${step.unit?" in "+step.unit:""} (Pflichtangabe)`;
+    const adr=[addr.street,addr.no].filter(Boolean).join(" ")||"–";
+    $("#haInfo").textContent=(ser.steps.length>1?`Adresse: ${adr} · ${HA.done.length}/${ser.steps.length} erledigt`:`Jedes Foto mit eigenem Messwert`)+(step.label?" · Tipp: Zollstock mit aufs Foto":"");
+    const w=[];if(/haus/i.test(ser.name)&&!(addr.no||"").trim())w.push("Hausnummer fehlt – bitte oben eintragen.");
+    if(step.label&&!(S.meas||"").trim())w.push(`${step.label} eintragen.`);
+    $("#haWarn").textContent=w.join(" ");$("#haWarn").hidden=!w.length;
+  }
+  shutterLabel();
+}
+function haAdvance(i,ser){haSync(ser);if(!HA.done.includes(i))HA.done.push(i);const n=ser.steps.length;
+  if(HA.done.length>=n){toast(`${ser.name} komplett ✓ – nächste Adresse eintragen oder Reihe neu beginnen.`);HA.idx=0}
+  else{let j=(i+1)%n;while(HA.done.includes(j))j=(j+1)%n;HA.idx=j}
+  LS.set("bk.ha",HA);renderHA()}
+function shutterLabel(){const b=$("#btnShoot");if(!b||b.disabled)return;const ser=curSeries();
+  if(!ser){b.lastChild.textContent="Foto aufnehmen";return}
+  if(ser.steps.length<2){b.lastChild.textContent=`Foto: ${ser.name}`;return}
+  const i=Math.min(HA.idx,ser.steps.length-1);b.lastChild.textContent=`Foto ${i+1}/${ser.steps.length}: ${ser.steps[i].name}`}
+$("#fNote").value=S.note;
+$("#fNote").addEventListener("input",e=>{S.note=e.target.value;LS.set("bk.note",S.note)});
+$("#noteClear").onclick=()=>{S.note="";$("#fNote").value="";LS.set("bk.note","");$("#fNote").focus()};
+$("#seriesSel").addEventListener("change",e=>{curPref().series=e.target.value;saveS();renderHA();renderTarget()});
+$("#fMeas").addEventListener("input",e=>{S.meas=e.target.value;const ser=curSeries();if(ser){const st=curStep(ser);const w=[];if(/haus/i.test(ser.name)&&!(addr.no||"").trim())w.push("Hausnummer fehlt – bitte oben eintragen.");if(st.label&&!S.meas.trim())w.push(`${st.label} eintragen.`);$("#haWarn").textContent=w.join(" ");$("#haWarn").hidden=!w.length}});
+
+/* Ordner in „Bilder & Doku“ */
+function renderFolders(){
+  const sel=$("#folderSel");if(!sel)return;sel.textContent="";const pr=curPref();
+  $("#folderHead").textContent=`Ordner in „${S.targetName}“`;
+  const add=(v,t)=>{const o=document.createElement("option");o.value=v;o.textContent=t;sel.appendChild(o)};
+  add("__street","Automatisch nach Straße");add("__root",`Direkt in „${S.targetName}“`);
+  const names=(S.kst&&S.subfolders[S.kst.id])||[];
+  for(const n of names)add(n,"› "+n);
+  if(!names.length){const o=document.createElement("option");o.disabled=true;o.textContent=S.kst&&account?"Keine weiteren Ordner – Bauleiter kann sie in Teams anlegen":"Ordner des Bauleiters erscheinen nach der Anmeldung";sel.appendChild(o)}
+  if(!["__street","__root"].includes(pr.folder)&&!names.includes(pr.folder))add(pr.folder,"› "+pr.folder);
+  sel.value=pr.folder;
+}
+async function loadSubfolders(gid,interactive){
+  const f=await findTarget(gid,interactive);
+  const r=await graph(`/drives/${f.driveId}/items/${f.itemId}/children?$select=name,folder&$top=200`,{},interactive);
+  S.subfolders[gid]=(r.value||[]).filter(x=>x.folder&&x.name!=="Originale").map(x=>x.name).sort((a,b)=>a.localeCompare(b,"de",{numeric:true}));
+  saveS();if(S.kst&&S.kst.id===gid)renderFolders();
+}
+$("#folderSel").addEventListener("change",e=>{curPref().folder=e.target.value;saveS();renderTarget()});
+
+/* Neuen Ordner in „Bilder & Doku“ anlegen */
+function showNewFolder(on){$("#newFolderBox").hidden=!on;$("#newFolderBtn").hidden=on;$("#newFolderMsg").textContent="";
+  if(on){$("#newFolderName").value="";setTimeout(()=>$("#newFolderName").focus(),50)}}
+$("#newFolderBtn").onclick=()=>{if(!S.kst){toast("Bitte zuerst die Kostenstelle wählen.");return}showNewFolder(true)};
+$("#newFolderCancel").onclick=()=>showNewFolder(false);
+$("#newFolderName").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("#newFolderOk").click()}});
+function useFolder(gid,name){
+  const list=S.subfolders[gid]||(S.subfolders[gid]=[]);
+  if(!list.includes(name)){list.push(name);list.sort((a,b)=>a.localeCompare(b,"de",{numeric:true}))}
+  curPref().folder=name;saveS();renderFolders();renderTarget();
+}
+$("#newFolderOk").onclick=async()=>{
+  const name=folderName($("#newFolderName").value);
+  const msg=$("#newFolderMsg");
+  if(!name){msg.textContent="Bitte einen Namen eingeben.";return}
+  if(/^(originale|__street|__root)$/i.test(name)){msg.textContent="Dieser Name ist reserviert, bitte einen anderen wählen.";return}
+  const gid=S.kst.id;
+  /* Ohne Netz oder Anmeldung: Ordner vormerken, er entsteht beim ersten Upload */
+  if(!navigator.onLine||!account){useFolder(gid,name);showNewFolder(false);
+    toast(`Ordner „${name}“ vorgemerkt – er wird beim ersten Upload in Teams angelegt.`);return}
+  const btn=$("#newFolderOk");btn.disabled=true;msg.textContent="Wird in Teams angelegt …";
+  try{
+    const f=await findTarget(gid,true);
+    try{
+      await graph(`/drives/${f.driveId}/items/${f.itemId}/children`,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({name,folder:{},"@microsoft.graph.conflictBehavior":"fail"})},true);
+      toast(`Ordner „${name}“ angelegt ✓`);
+    }catch(e){
+      if(/already exists|nameAlreadyExists|409/i.test(e.message))toast(`Ordner „${name}“ gibt es schon – ausgewählt.`);
+      else throw e;
+    }
+    useFolder(gid,name);showNewFolder(false);
+  }catch(e){msg.textContent="Anlegen fehlgeschlagen: "+e.message}
+  finally{btn.disabled=false}
+};
+$("#reloadFolders").onclick=async()=>{if(!S.kst){toast("Bitte zuerst die Kostenstelle wählen.");return}
+  try{await loadSubfolders(S.kst.id,true);toast("Ordner aktualisiert")}catch(e){toast(e.message)}};
+
+/* ---------- Kompass ---------- */
+let heading=null,headingAtHide=null,hx=0,hy=0,lastChip=0,gotOri=false;
+function camHeading(al,be,ga){
+  const r=Math.PI/180,ca=Math.cos(al*r),sa=Math.sin(al*r),cb=Math.cos(be*r),sb=Math.sin(be*r),cg=Math.cos(ga*r),sg=Math.sin(ga*r);
+  const up=cb*cg;
+  if(Math.abs(up)>0.8){const so=(screen.orientation&&screen.orientation.angle)||window.orientation||0;return (360-al+so+360)%360}
+  const east=-(ca*sg+sa*sb*cg),north=ca*sb*cg-sa*sg;
+  return (Math.atan2(east,north)/r+360)%360;
+}
+function onOri(e){
+  let h=null;
+  if(typeof e.webkitCompassHeading==="number"&&!isNaN(e.webkitCompassHeading))h=e.webkitCompassHeading;
+  else if((e.absolute||e.type==="deviceorientationabsolute")&&e.alpha!=null)h=camHeading(e.alpha,e.beta||0,e.gamma||0);
+  else return;
+  gotOri=true;
+  const r=h*Math.PI/180;hx=hx*0.75+Math.cos(r)*0.25;hy=hy*0.75+Math.sin(r)*0.25;
+  heading=(Math.atan2(hy,hx)*180/Math.PI+360)%360;
+  const now=Date.now();if(now-lastChip>300){lastChip=now;setChip("#chipCompass",`Blick ${Math.round(heading)}° ${dirName(heading)}`,"ok")}
+}
+function listenOri(){
+  if("ondeviceorientationabsolute" in window)window.addEventListener("deviceorientationabsolute",onOri);
+  window.addEventListener("deviceorientation",onOri);
+  setTimeout(()=>{if(!gotOri)setChip("#chipCompass","Kein Kompass – nur Karten-Nordpfeil","warn")},4000);
+}
+function initCompass(){
+  if(typeof DeviceOrientationEvent!=="undefined"&&typeof DeviceOrientationEvent.requestPermission==="function"){
+    setChip("#chipCompass","Kompass aktivieren (antippen)","warn");
+    $("#chipCompass").onclick=async()=>{try{const p=await DeviceOrientationEvent.requestPermission();if(p==="granted"){setChip("#chipCompass","Kompass …","");listenOri()}else setChip("#chipCompass","Kompass verweigert","bad")}catch(e){setChip("#chipCompass","Kompass nicht verfügbar","bad")}};
+  }else if(typeof DeviceOrientationEvent!=="undefined")listenOri();
+  else setChip("#chipCompass","Kein Kompass","warn");
+}
+document.addEventListener("visibilitychange",()=>{if(document.hidden)headingAtHide=heading});
+
+/* ---------- Karte ---------- */
+const MAPZ=17;
+function loadImg(src,ms=8000){return new Promise((res,rej)=>{const i=new Image();i.crossOrigin="anonymous";const to=setTimeout(()=>{i.src="";rej(new Error("timeout"))},ms);i.onload=()=>{clearTimeout(to);res(i)};i.onerror=()=>{clearTimeout(to);rej(new Error("load"))};i.src=src})}
+async function getMap(lat,lon){
+  if(!navigator.onLine)return null;
+  if(S.gkey){try{const img=await loadImg(`https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=${MAPZ}&size=512x512&scale=2&maptype=${S.mapType}&key=${encodeURIComponent(S.gkey)}`);return {img,src:"Google"}}catch(e){}}
+  const n=256*2**MAPZ,x=(lon+180)/360*n,sr=lat*Math.PI/180,y=(1-Math.log(Math.tan(sr)+1/Math.cos(sr))/Math.PI)/2*n;
+  const c=document.createElement("canvas");c.width=c.height=512;const g=c.getContext("2d");g.fillStyle="#e8e4dc";g.fillRect(0,0,512,512);
+  const x0=x-256,y0=y-256,jobs=[];
+  for(let tx=Math.floor(x0/256);tx<=Math.floor((x0+511)/256);tx++)for(let ty=Math.floor(y0/256);ty<=Math.floor((y0+511)/256);ty++){
+    jobs.push(loadImg(`https://tile.openstreetmap.org/${MAPZ}/${tx}/${ty}.png`).then(i=>g.drawImage(i,tx*256-x0,ty*256-y0)).catch(()=>{}));
+  }
+  await Promise.all(jobs);return {img:c,src:"© OpenStreetMap"};
+}
+
+/* ---------- Stempel zeichnen ---------- */
+function rr(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
+function northArrow(g,cx,cy,R,rot,withRing){
+  g.save();g.translate(cx,cy);
+  if(withRing){g.fillStyle="rgba(15,18,20,.62)";g.beginPath();g.arc(0,0,R,0,7);g.fill();g.strokeStyle="rgba(255,255,255,.85)";g.lineWidth=R*0.06;g.stroke()}
+  g.rotate(rot*Math.PI/180);
+  const L=R*0.5,W=R*0.22;
+  g.fillStyle="#e8a038";g.beginPath();g.moveTo(0,-L);g.lineTo(W,0);g.lineTo(-W,0);g.closePath();g.fill();
+  g.fillStyle="#ffffff";g.beginPath();g.moveTo(0,L);g.lineTo(W,0);g.lineTo(-W,0);g.closePath();g.fill();
+  g.font=`700 ${R*0.36}px "Barlow",system-ui,sans-serif`;g.textAlign="center";g.textBaseline="middle";
+  g.lineWidth=R*0.08;g.strokeStyle="rgba(0,0,0,.6)";g.strokeText("N",0,-L-R*0.24);g.fillStyle="#fff";g.fillText("N",0,-L-R*0.24);
+  g.restore();
+}
+async function drawStamp(g,W,H,d){
+  const u=Math.min(W,H)/100,m=2.4*u;
+  /* Nordpfeil oben rechts (nur mit Kompass sinnvoll) */
+  if(d.h!=null)northArrow(g,W-m-7*u,m+7*u,7*u,-d.h,true);
+
+  /* Karte unten links */
+  const ms=Math.round(Math.min(W,H)*0.34),mx=m,my=H-m-ms;
+  if(d.p){
+    const map=await getMap(d.p.lat,d.p.lon);
+    g.save();rr(g,mx,my,ms,ms,1.2*u);g.clip();
+    if(map){g.drawImage(map.img,mx,my,ms,ms)}else{g.fillStyle="#3a4248";g.fillRect(mx,my,ms,ms);g.fillStyle="#fff";g.font=`600 ${2.6*u}px "Barlow",system-ui,sans-serif`;g.textAlign="center";g.fillText("Karte offline",mx+ms/2,my+ms/2-2*u)}
+    const cx=mx+ms/2,cy=my+ms/2,mpp=156543.03392*Math.cos(d.p.lat*Math.PI/180)/2**MAPZ*512/ms;
+    if(d.h!=null){const a=(d.h-90)*Math.PI/180,sp=30*Math.PI/180,rl=ms*0.32;g.fillStyle="rgba(232,160,56,.4)";g.beginPath();g.moveTo(cx,cy);g.arc(cx,cy,rl,a-sp,a+sp);g.closePath();g.fill()}
+    const ar=Math.min(ms*0.45,d.p.acc/mpp);if(ar>u){g.fillStyle="rgba(30,120,255,.18)";g.strokeStyle="rgba(30,120,255,.6)";g.lineWidth=0.25*u;g.beginPath();g.arc(cx,cy,ar,0,7);g.fill();g.stroke()}
+    g.fillStyle="#e3261b";g.strokeStyle="#fff";g.lineWidth=0.5*u;g.beginPath();g.arc(cx,cy,1.3*u,0,7);g.fill();g.stroke();
+    /* Maßstab */
+    const nice=[10,20,25,50,100,200,250,500].find(v=>v/mpp>ms*0.22)||500,bl=nice/mpp,bx=mx+1.6*u,by=my+ms-2*u;
+    g.fillStyle="rgba(255,255,255,.85)";g.fillRect(bx-0.6*u,by-3.2*u,bl+1.2*u,4.2*u);
+    g.fillStyle="#111";g.fillRect(bx,by,bl,0.45*u);g.fillRect(bx,by-1*u,0.3*u,1.45*u);g.fillRect(bx+bl-0.3*u,by-1*u,0.3*u,1.45*u);
+    g.font=`600 ${1.8*u}px "Barlow",system-ui,sans-serif`;g.textAlign="left";g.textBaseline="alphabetic";g.fillText(`${nice} m`,bx,by-1.3*u);
+    if(map&&map.src!=="Google"){g.font=`500 ${1.3*u}px system-ui,sans-serif`;g.textAlign="right";g.fillStyle="rgba(255,255,255,.8)";const tw=g.measureText(map.src).width;g.fillRect(mx+ms-tw-1.4*u,my+ms-2.1*u,tw+1.4*u,2.1*u);g.fillStyle="#222";g.fillText(map.src,mx+ms-0.7*u,my+ms-0.6*u)}
+    g.restore();
+    g.strokeStyle="rgba(255,255,255,.9)";g.lineWidth=0.35*u;rr(g,mx,my,ms,ms,1.2*u);g.stroke();
+    northArrow(g,mx+ms-4.2*u,my+4.6*u,3.4*u,0,true);
+  }
+
+  /* Datenblock unten rechts */
+  const L=[];
+  if(d.kst){const nm=d.kst.name.length>38?d.kst.name.slice(0,37)+"…":d.kst.name;L.push({t:d.kst.kst?`KST ${d.kst.kst}${nm?" · "+nm:""}`:nm,w:700,s:3.4,c:"#e8a038"})}
+  L.push({t:`${fmtDate(d.t)}   ${fmtTime(d.t)} Uhr`,w:700,s:3.6});
+  const st=[d.a.street,d.a.no].filter(Boolean).join(" ");if(st)L.push({t:st,w:600,s:3.2});
+  const ct=[d.a.zip,d.a.city].filter(Boolean).join(" ");if(ct)L.push({t:ct,w:600,s:3.2});
+  if(d.ha){L.push({t:d.ha.single?d.ha.series:`${d.ha.series} · ${d.ha.i+1}/${d.ha.n}: ${d.ha.name}`,w:700,s:3.0,c:"#ffffff"});
+    if(d.ha.meas)L.push({t:d.ha.meas,w:700,s:3.6,c:"#e8a038"})}
+  if(d.note)for(const ln of wrapText(`„${d.note}“`,34))L.push({t:ln,w:600,s:3.0,c:"#ffe2b0"});
+  if(d.p){const U=toUTM(d.p.lat,d.p.lon);
+    L.push({t:`UTM ${U.zone}${U.band}  E ${grp(U.E)}  N ${grp(U.N)}`,w:600,s:2.8,mono:true});
+    L.push({t:`${d.p.lat.toFixed(6)}° N  ${d.p.lon.toFixed(6)}° E  ±${Math.round(d.p.acc)} m`,w:500,s:2.2,mono:true,c:"#d6dde1"});
+  }else L.push({t:"Kein GPS-Standort",w:600,s:2.8,c:"#ffb3b3"});
+  if(d.h!=null)L.push({t:`Blickrichtung ca. ${Math.round(d.h)}° ${dirName(d.h)}`,w:500,s:2.4,c:"#d6dde1"});
+  const font=(l,k)=>`${l.w} ${l.s*u*k}px ${l.mono?'"IBM Plex Mono",ui-monospace,monospace':'"Barlow",system-ui,sans-serif'}`;
+  const avail=W-(d.p?ms:0)-3*m-2.4*u;let k=1;
+  g.textBaseline="alphabetic";
+  const widest=kk=>Math.max(...L.map(l=>{g.font=font(l,kk);return g.measureText(l.t).width}));
+  let mw=widest(1);if(mw>avail){k=avail/mw;mw=widest(k)}
+  const pad=1.6*u*k,lh=l=>l.s*u*k*1.28,bh=L.reduce((s,l)=>s+lh(l),0)+pad*2,bw=mw+pad*2,bx=W-m-bw,by=H-m-bh;
+  g.fillStyle="rgba(15,18,16,.68)";rr(g,bx,by,bw,bh,0.4*u);g.fill();g.fillStyle="#41934a";g.fillRect(bx,by,bw,0.7*u);
+  let y=by+pad;g.textAlign="right";
+  for(const l of L){y+=lh(l);g.font=font(l,k);g.fillStyle=l.c||"#ffffff";g.fillText(l.t,W-m-pad,y-l.s*u*k*0.28)}
+  /* Firmenlogo über dem Datenblock */
+  const logo=document.querySelector(".logo");
+  if(d.logo&&logo&&logo.complete&&logo.naturalWidth){const lhgt=Math.min(11*u,by-m),lw=lhgt*logo.naturalWidth/logo.naturalHeight;
+    if(lhgt>3*u){g.drawImage(logo,W-m-lw,by-lhgt-0.8*u,lw,lhgt)}}
+}
+function wrapText(t,max){const out=[];let line="";for(const w of t.split(/\s+/)){if((line+" "+w).trim().length>max&&line){out.push(line);line=w}else line=(line+" "+w).trim()}if(line)out.push(line);return out.slice(0,3)}
+
+/* ---------- EXIF (GPS, Zeit, Richtung) ---------- */
+function dms(v){v=Math.abs(v);const d=Math.floor(v),mf=(v-d)*60,m=Math.floor(mf),s=Math.round((mf-m)*60*1000);return [[d,1],[m,1],[s,1000]]}
+function addExif(url,d){
+  if(!window.piexif)return url;
+  try{const t=d.t,dt=`${t.getFullYear()}:${pad(t.getMonth()+1)}:${pad(t.getDate())} ${fmtTime(t)}`;
+    const z={},ex={},gps={};
+    z[piexif.ImageIFD.Software]="Baustellen-Kamera";z[piexif.ImageIFD.DateTime]=dt;ex[piexif.ExifIFD.DateTimeOriginal]=dt;
+    if(d.p){gps[piexif.GPSIFD.GPSLatitudeRef]=d.p.lat>=0?"N":"S";gps[piexif.GPSIFD.GPSLatitude]=dms(d.p.lat);gps[piexif.GPSIFD.GPSLongitudeRef]=d.p.lon>=0?"E":"W";gps[piexif.GPSIFD.GPSLongitude]=dms(d.p.lon);
+      if(d.h!=null){gps[piexif.GPSIFD.GPSImgDirectionRef]="M";gps[piexif.GPSIFD.GPSImgDirection]=[Math.round(d.h*100),100]}}
+    return piexif.insert(piexif.dump({"0th":z,"Exif":ex,"GPS":gps}),url);
+  }catch(e){return url}
+}
+function urlToBlob(u){const [h,b]=u.split(","),bin=atob(b),a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return new Blob([a],{type:"image/jpeg"})}
+
+/* ---------- Aufnahme ---------- */
+$("#btnShoot").onclick=()=>$("#fileIn").click();
+$("#fileIn").addEventListener("change",async e=>{
+  const file=e.target.files&&e.target.files[0];e.target.value="";if(!file)return;
+  const btn=$("#btnShoot");btn.disabled=true;btn.lastChild.textContent="Stempel wird erstellt …";
+  try{await processPhoto(file)}catch(err){toast("Foto konnte nicht verarbeitet werden: "+err.message)}
+  finally{btn.disabled=false;shutterLabel()}
+});
+async function processPhoto(file){
+  const t=new Date(),h=headingAtHide!=null?headingAtHide:heading,p=pos?{...pos}:null,a={...addr};
+  try{await Promise.all([document.fonts.load('700 20px "Barlow"'),document.fonts.load('600 20px "IBM Plex Mono"')])}catch(e){}
+  const url=URL.createObjectURL(file);const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error("Bild nicht lesbar"));i.src=url});
+  const MAX=3200,sc=Math.min(1,MAX/Math.max(img.naturalWidth,img.naturalHeight));
+  const W=Math.round(img.naturalWidth*sc),H=Math.round(img.naturalHeight*sc);
+  const c=document.createElement("canvas");c.width=W;c.height=H;const g=c.getContext("2d");g.drawImage(img,0,0,W,H);URL.revokeObjectURL(url);
+  const kst=S.kst?{...S.kst}:null;
+  const note=(S.note||"").trim();
+  const ser=curSeries(),pr={...curPref()};let ha=null;
+  if(ser){const i=Math.min(HA.idx,ser.steps.length-1),stp=ser.steps[i],mv=(S.meas||"").trim();
+    ha={i,n:ser.steps.length,single:ser.steps.length<2,name:stp.name,series:ser.name,meas:stp.label&&mv?`${stp.label}: ${mv}${stp.unit?" "+stp.unit:""}`:"",measShort:stp.label&&mv?`${mv}${stp.unit}`:""}}
+  const d={t,h,p,a,kst,note,ha,logo:S.logoInStamp};
+  await drawStamp(g,W,H,d);
+  const blob=urlToBlob(addExif(c.toDataURL("image/jpeg",+S.quality||0.85),d));
+  const tc=document.createElement("canvas"),ts=160/Math.max(W,H);tc.width=Math.round(W*ts);tc.height=Math.round(H*ts);tc.getContext("2d").drawImage(c,0,0,tc.width,tc.height);
+  const place=[safe(a.street),safe(a.no),safe(a.city)].filter(Boolean).join("_")||"Ohne-Adresse";
+  const extra=[ha?(ha.single?safe(ha.name):`${pad(ha.i+1)}-${safe(ha.name)}`):"",ha&&ha.measShort?safe(ha.measShort):"",note?safe(note).slice(0,30):""].filter(Boolean).join("_");
+  const stamp=`${isoDay(t)}_${pad(t.getHours())}${pad(t.getMinutes())}${pad(t.getSeconds())}`;
+  const name=`${place}${extra?"_"+extra:""}_${stamp}.jpg`;
+  const sub=[];
+  if(pr.folder==="__street")sub.push(folderName(a.street)||"Ohne Straße");
+  else if(pr.folder&&pr.folder!=="__root")sub.push(pr.folder);
+  if(ha&&!ha.single){const af=folderName([a.street,a.no].filter(Boolean).join(" "))||"Ohne Adresse";if(sub[sub.length-1]!==af)sub.push(af)}
+  if(S.dayFolder)sub.push(isoDay(t));
+  let orig=null,origName="";
+  if(S.uploadOriginal){orig=file;const ext=(file.type==="image/heic"||/\.heic$/i.test(file.name))?"heic":(file.type==="image/png"?"png":"jpg");origName=name.replace(/\.jpg$/,"_original."+ext)}
+  const it={id:t.getTime()+"-"+Math.random().toString(36).slice(2,7),name,sub,kst,created:t.getTime(),blob,orig,origName,thumb:tc.toDataURL("image/jpeg",0.7),status:"wartet",error:"",webUrl:""};
+  await DB.put(it);current=it;showPreview(it);await renderList();
+  if(ha){S.meas="";$("#fMeas").value="";if(ha.single)renderHA();else haAdvance(ha.i,ser)}
+  if(!kst)toast("Keine Kostenstelle gewählt – das Foto wird beim Hochladen der dann gewählten zugeordnet.");
+  if(S.autoUpload)processQueue();
+}
+let current=null,prevUrl=null;
+function showPreview(it){if(prevUrl)URL.revokeObjectURL(prevUrl);prevUrl=URL.createObjectURL(it.blob);$("#previewImg").src=prevUrl;$("#previewPanel").hidden=false}
+$("#btnShare").onclick=async()=>{
+  if(!current||!current.blob)return;const f=new File([current.blob],current.name,{type:"image/jpeg"});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:current.name});return}catch(e){if(e.name==="AbortError")return}}
+  const a=document.createElement("a");a.href=URL.createObjectURL(f);a.download=current.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);
+};
+$("#btnUpload").onclick=()=>processQueue(true);
+$("#btnRetry").onclick=()=>processQueue(true);
+
+/* ---------- Verlauf ---------- */
+async function renderList(){
+  const items=(await DB.all()).sort((a,b)=>b.created-a.created),ul=$("#list");ul.textContent="";
+  if(!items.length){ul.innerHTML='<li class="empty">Noch keine Fotos. Tippe unten auf „Foto aufnehmen“.</li>'}
+  for(const it of items){
+    const li=document.createElement("li");li.className="item";
+    const im=document.createElement("img");im.src=it.thumb;im.alt="";li.appendChild(im);
+    const mid=document.createElement("div");mid.style.minWidth="0";
+    const nm=document.createElement("div");nm.className="nm";nm.textContent=[it.kst?it.kst.kst||it.kst.name:"ohne KST",...(it.sub||[]),it.name].join(" › ");mid.appendChild(nm);
+    if(it.error){const er=document.createElement("div");er.className="er";er.textContent=it.error;mid.appendChild(er)}
+    if(it.webUrl){const l=document.createElement("a");l.href=it.webUrl;l.target="_blank";l.rel="noopener";l.className="link";l.textContent="In Teams/OneDrive öffnen";mid.appendChild(l)}
+    li.appendChild(mid);
+    const p=document.createElement("span");const map={wartet:["wait","Wartet"],"lädt":["run","Lädt …"],hochgeladen:["ok","Hochgeladen"],fehler:["err","Fehler"]}[it.status]||["wait",it.status];
+    p.className="pill "+map[0];p.textContent=map[1];li.appendChild(p);
+    if(it.blob)li.onclick=e=>{if(e.target.tagName!=="A"){current=it;showPreview(it);$("#previewPanel").scrollIntoView({behavior:"smooth"})}};
+    ul.appendChild(li);
+  }
+  const n=items.filter(i=>i.status!=="hochgeladen").length;setChip("#chipQueue",`${n} wartend`,n?"warn":"ok");
+}
+async function prune(){const items=(await DB.all()).filter(i=>i.status==="hochgeladen").sort((a,b)=>b.created-a.created);for(const it of items.slice(20))await DB.del(it.id)}
+
+/* ---------- Microsoft-Anmeldung & Upload ---------- */
+const SCOPES=["Files.ReadWrite.All","Team.ReadBasic.All"];let msalApp=null,account=null;
+const redirectUri=()=>location.origin+location.pathname;
+async function initMsal(){
+  msalApp=null;account=null;
+  if(window.msal&&S.clientId&&window.isSecureContext){try{
+    msalApp=new msal.PublicClientApplication({auth:{clientId:S.clientId.trim(),authority:`https://login.microsoftonline.com/${(S.tenantId||"organizations").trim()}`,redirectUri:redirectUri()},cache:{cacheLocation:"localStorage"}});
+    await msalApp.initialize();
+    const r=await msalApp.handleRedirectPromise();if(r&&r.account)msalApp.setActiveAccount(r.account);
+    account=msalApp.getActiveAccount()||msalApp.getAllAccounts()[0]||null;if(account)msalApp.setActiveAccount(account);
+  }catch(e){msalApp=null;const m="Anmeldung: "+(e.errorMessage||e.message);toast(m);$("#setStatus").textContent=m}}
+  updateCloud();
+}
+function updateCloud(){
+  const ready=!!S.clientId;
+  $("#setupBanner").hidden=ready&&!!account;
+  if(!ready){$("#bannerText").textContent="Upload in Teams ist noch nicht eingerichtet. Fotos werden auf dem Gerät gesammelt und später hochgeladen.";$("#bannerSettings").textContent="Jetzt einrichten"}
+  else if(!account){$("#bannerText").textContent="Einmal mit deinem Firmenkonto anmelden, dann die Kostenstelle wählen.";$("#bannerSettings").textContent="Bei Microsoft anmelden"}
+  if(!ready)setChip("#chipCloud","Upload nicht eingerichtet","bad");
+  else if(!account)setChip("#chipCloud","Bei Microsoft anmelden","warn");
+  else if(!S.kst)setChip("#chipCloud","Kostenstelle wählen","warn");
+  else setChip("#chipCloud",`Teams: KST ${S.kst.kst||S.kst.name}`,"ok");
+  $("#btnLogin").textContent=account?`Abmelden (${account.username})`:"Bei Microsoft anmelden";
+}
+
+/* ---------- Kostenstellen (= Teams) ---------- */
+function parseTeam(t){const m=t.displayName.match(/^\s*(\d{4,})[\s_\-–]*(.*)$/);return {id:t.id,kst:m?m[1]:"",name:m?(m[2]||t.displayName):t.displayName}}
+async function loadTeams(interactive){
+  const j=await graph("/me/joinedTeams?$select=id,displayName",{},interactive);
+  S.teams=(j.value||[]).map(parseTeam).sort((a,b)=>(a.kst||"~"+a.name).localeCompare(b.kst||"~"+b.name,"de",{numeric:true}));
+  if(S.kst){const f=S.teams.find(t=>t.id===S.kst.id);S.kst=f||null}
+  saveS();renderTeams();updateCloud();
+}
+function renderTeams(){
+  const sel=$("#kstSel");sel.textContent="";
+  const o0=document.createElement("option");o0.value="";o0.textContent=S.teams.length?"– Kostenstelle wählen –":"– noch keine Teams geladen –";sel.appendChild(o0);
+  for(const t of S.teams){const o=document.createElement("option");o.value=t.id;o.textContent=t.kst?`${t.kst} – ${t.name}`:t.name;sel.appendChild(o)}
+  sel.value=S.kst?S.kst.id:"";renderFolders();renderTarget();renderProject();
+}
+function renderTarget(){
+  const el=$("#kstTarget");
+  if(!S.kst){el.textContent=S.teams.length?"Bitte die Kostenstelle der Baustelle wählen.":"Nach der Anmeldung erscheinen hier deine Teams.";return}
+  const f=S.folders[S.kst.id],parts=[f&&f.name===S.targetName?f.path:S.targetName];
+  const pr=curPref();
+  if(pr.folder==="__street")parts.push(folderName(addr.street)||"Straße");else if(pr.folder&&pr.folder!=="__root")parts.push(pr.folder);
+  const cs=curSeries();if(cs&&cs.steps.length>1){const af=folderName([addr.street,addr.no].filter(Boolean).join(" "))||"Adresse";if(parts[parts.length-1]!==af)parts.push(af)}
+  if(S.dayFolder)parts.push(isoDay(new Date()));
+  el.textContent="Ablage: "+parts.join(" › ");
+}
+$("#kstSel").addEventListener("change",e=>{showNewFolder(false);S.kst=S.teams.find(t=>t.id===e.target.value)||null;saveS();renderFolders();renderHA();renderTarget();renderProject();updateCloud();if(S.kst&&account)loadSubfolders(S.kst.id,false).catch(err=>{$("#kstTarget").textContent=err.message})});
+$("#reloadTeams").onclick=async()=>{if(!msalApp){toast("Bitte zuerst die Anmeldung einrichten.");openSettings();return}try{await loadTeams(true);toast(`${S.teams.length} Teams geladen`)}catch(e){toast(e.message)}};
+const folderName=s=>(s||"").normalize("NFC").replace(/["*:<>?\/\\|]+/g,"").replace(/\s+/g," ").trim().replace(/[.\s]+$/,"").slice(0,80);
+
+/* Zielordner im Team suchen: Ablage-Wurzel → Kanal-Ordner → Suche */
+async function findTarget(gid,interactive){
+  const c=S.folders[gid];if(c&&c.name===S.targetName)return c;
+  const want=S.targetName.trim().toLowerCase(),match=x=>x.folder&&x.name.toLowerCase().includes(want);
+  const drive=await graph(`/groups/${gid}/drive?$select=id`,{},interactive);
+  const kids=async id=>((await graph(`/drives/${drive.id}/items/${id}/children?$select=id,name,folder&$top=200`,{},interactive)).value||[]).filter(x=>x.folder);
+  const l1=await kids("root");let hit=l1.find(match),path=hit?hit.name:"";
+  if(!hit)for(const f of l1){const l2=await kids(f.id);const h=l2.find(match);if(h){hit=h;path=`${f.name} › ${h.name}`;break}}
+  if(!hit){try{const q=S.targetName.replace(/'/g,"''");const r=await graph(`/drives/${drive.id}/root/search(q='${encodeURIComponent(q)}')?$select=id,name,folder,parentReference`,{},interactive);
+    hit=(r.value||[]).find(match);if(hit)path=((hit.parentReference&&hit.parentReference.path||"").split("root:")[1]||"").replace(/^\//,"").split("/").filter(Boolean).concat(hit.name).join(" › ")}catch(e){}}
+  if(!hit)throw new Error(`Ordner „${S.targetName}“ im Team nicht gefunden.`);
+  S.folders[gid]={driveId:drive.id,itemId:hit.id,name:S.targetName,path};saveS();if(S.kst&&S.kst.id===gid)renderTarget();return S.folders[gid];
+}
+async function token(interactive){
+  if(!msalApp)throw new Error(loginProblem()||"Anmeldung nicht eingerichtet (Einstellungen → Client-ID).");
+  if(!account){if(interactive){await msalApp.loginRedirect({scopes:SCOPES});return new Promise(()=>{})}throw new Error("Nicht bei Microsoft angemeldet.")}
+  try{return (await msalApp.acquireTokenSilent({scopes:SCOPES,account})).accessToken}
+  catch(e){if(interactive){await msalApp.acquireTokenRedirect({scopes:SCOPES,account});return new Promise(()=>{})}throw new Error("Anmeldung abgelaufen – bitte neu anmelden.")}
+}
+async function graph(path,opt={},interactive=false){
+  const tk=await token(interactive);
+  const r=await fetch("https://graph.microsoft.com/v1.0"+path,{...opt,headers:{Authorization:"Bearer "+tk,...(opt.headers||{})}});
+  if(!r.ok){let m="Fehler "+r.status;try{const j=await r.json();if(j.error&&j.error.message)m=j.error.message}catch(e){}throw new Error(m)}
+  return r.status===204?null:r.json();
+}
+async function putFile(f,rel,blob,type,interactive){
+  const base=`/drives/${f.driveId}/items/${f.itemId}:/${rel}:`;
+  if(blob.size<4*1024*1024)return graph(base+"/content?@microsoft.graph.conflictBehavior=rename",{method:"PUT",headers:{"Content-Type":type},body:blob},interactive);
+  const s=await graph(base+"/createUploadSession",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({item:{"@microsoft.graph.conflictBehavior":"rename"}})},interactive);
+  const CH=327680*10,size=blob.size;let off=0,res=null;
+  while(off<size){const end=Math.min(off+CH,size);const r=await fetch(s.uploadUrl,{method:"PUT",headers:{"Content-Range":`bytes ${off}-${end-1}/${size}`},body:blob.slice(off,end)});
+    if(!r.ok)throw new Error("Upload abgebrochen ("+r.status+")");if(r.status===200||r.status===201)res=await r.json();off=end}
+  return res;
+}
+async function upload(it,interactive){
+  if(!it.kst){if(!S.kst)throw new Error("Keine Kostenstelle gewählt.");it.kst={...S.kst}}
+  const f=await findTarget(it.kst.id,interactive);
+  const dir=(it.sub||[]).map(encodeURIComponent);
+  if(!it.mainDone){const r=await putFile(f,[...dir,encodeURIComponent(it.name)].join("/"),it.blob,"image/jpeg",interactive);it.mainDone=true;it.webUrl=(r&&r.webUrl)||"";await DB.put(it)}
+  if(it.orig&&!it.origDone){await putFile(f,[...dir,"Originale",encodeURIComponent(it.origName)].join("/"),it.orig,it.orig.type||"image/jpeg",interactive);it.origDone=true;it.orig=null;await DB.put(it)}
+  return {webUrl:it.webUrl};
+}
+let busy=false;
+async function processQueue(interactive){
+  if(busy)return;
+  if(!S.clientId){if(interactive){toast("Bitte zuerst den Upload einrichten.");openSettings()}return}
+  if(!navigator.onLine){if(interactive)toast("Kein Netz – Fotos werden später hochgeladen.");return}
+  if(!account&&!interactive)return;
+  busy=true;
+  try{
+    const items=(await DB.all()).filter(i=>i.status!=="hochgeladen"&&i.blob).sort((a,b)=>a.created-b.created);
+    for(const it of items){
+      it.status="lädt";it.error="";await DB.put(it);await renderList();
+      try{const r=await upload(it,interactive);it.status="hochgeladen";it.webUrl=(r&&r.webUrl)||""}
+      catch(e){it.status="fehler";it.error=e.message}
+      await DB.put(it);await renderList();
+      if(it.status==="fehler"&&/angemeldet|Anmeldung/.test(it.error))break;
+    }
+  }finally{busy=false;await prune();await renderList()}
+}
+window.addEventListener("online",()=>{maybeGeocode();if(S.autoUpload)processQueue()});
+
+/* ---------- Einstellungen ---------- */
+const dlg=$("#dlg");
+function openSettings(){
+  $("#sTarget").value=S.targetName;$("#sFolderDef").value=S.folderDefault||"street";$("#sAuto").checked=!!S.autoUpload;$("#sDay").checked=!!S.dayFolder;
+  $("#entraFields").style.display=LOCKED?"none":"contents";$("#entraHelp").hidden=LOCKED;$("#entraLocked").hidden=!LOCKED;
+  $("#sKey").parentElement.hidden=!!CONFIG.gkey;
+  $("#sSeries").value=S.seriesText||"";$("#sOrig").checked=!!S.uploadOriginal;$("#sLogo").checked=!!S.logoInStamp;
+  $("#sClient").value=S.clientId;$("#sTenant").value=S.tenantId;$("#sKey").value=S.gkey;$("#sMap").value=S.mapType;$("#sQual").value=String(S.quality);
+  const f=S.kst&&S.folders[S.kst.id];
+  $("#redirUri").textContent=redirectUri();$("#setStatus").textContent=f?`KST ${S.kst.kst}: ${f.path} ✓`:"";
+  if(dlg.showModal)dlg.showModal();else dlg.setAttribute("open","");
+}
+function readForm(){
+  const clientChanged=S.clientId!==$("#sClient").value.trim()||S.tenantId!==($("#sTenant").value.trim()||"organizations");
+  const st=$("#sSeries").value.replace(/\r/g,"").trim(),def=(CONFIG.series||"").trim();
+  S.seriesCustom=!!st&&st!==def;
+  Object.assign(S,{seriesText:S.seriesCustom?st:def,uploadOriginal:$("#sOrig").checked,logoInStamp:$("#sLogo").checked});
+  const tgt=$("#sTarget").value.trim()||"Bilder & Doku";if(tgt!==S.targetName)S.folders={};
+  Object.assign(S,{targetName:tgt,folderDefault:$("#sFolderDef").value,autoUpload:$("#sAuto").checked,dayFolder:$("#sDay").checked,
+    clientId:$("#sClient").value.trim(),tenantId:$("#sTenant").value.trim()||"organizations",gkey:$("#sKey").value.trim(),mapType:$("#sMap").value,quality:+$("#sQual").value});
+  saveS();renderProject();renderFolders();renderTarget();renderHA();return clientChanged;
+}
+function renderProject(){$("#projLabel").textContent=S.kst?(S.kst.kst?`KST ${S.kst.kst} · ${S.kst.name}`:S.kst.name):"Keine Kostenstelle gewählt"}
+$("#openSettings").onclick=openSettings;
+$("#seriesReset").onclick=()=>{$("#sSeries").value=CONFIG.series||""};
+$("#bannerSettings").onclick=()=>{if(!S.clientId){openSettings();return}const why=loginProblem();if(why){toast(why);return}token(true).catch(e=>toast(e.message))};
+$("#chipCloud").onclick=()=>{if(S.clientId&&!account)token(true).catch(e=>toast(e.message));else if(account&&!S.kst)$("#kstSel").focus();else openSettings()};
+$("#setForm").addEventListener("submit",async e=>{if(e.submitter&&e.submitter.value==="save"){if(readForm())await initMsal();else updateCloud();toast("Gespeichert")}});
+function loginProblem(){
+  if(location.protocol==="file:"||location.protocol==="blob:"||location.protocol==="content:")return "Die Datei ist nur lokal geöffnet. Die Anmeldung funktioniert erst, wenn die Seite über eine https://-Adresse aufgerufen wird (z. B. GitHub Pages).";
+  if(!window.isSecureContext)return "Die Seite läuft nicht über HTTPS. Bitte über eine https://-Adresse öffnen.";
+  if(!window.msal)return "Die Microsoft-Anmeldebibliothek wurde nicht geladen. Bitte Internetverbindung prüfen und die Seite neu laden.";
+  if(!S.clientId)return "Bitte zuerst die Anwendungs-ID (Client-ID) eintragen.";
+  if(!/^[0-9a-f-]{36}$/i.test(S.clientId))return "Die Client-ID sieht nicht richtig aus (Format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).";
+  return "";
+}
+$("#btnLogin").onclick=async()=>{
+  if(readForm()||!msalApp)await initMsal();
+  const why=loginProblem();if(why){$("#setStatus").textContent=why;return}
+  if(!msalApp){$("#setStatus").textContent="Anmeldung konnte nicht gestartet werden. Bitte Seite neu laden.";return}
+  $("#setStatus").textContent="Weiterleitung zu Microsoft …";
+  if(account){try{await msalApp.logoutRedirect({account})}catch(e){toast(e.message)}return}
+  try{await token(true)}catch(e){$("#setStatus").textContent=e.message}
+};
+$("#btnTest").onclick=async()=>{
+  if(readForm()||!msalApp)await initMsal();
+  $("#setStatus").textContent="Prüfe …";
+  try{if(!S.teams.length)await loadTeams(true);if(!S.kst)throw new Error("Bitte auf dem Hauptbildschirm eine Kostenstelle wählen.");delete S.folders[S.kst.id];const f=await findTarget(S.kst.id,true);$("#setStatus").textContent=`KST ${S.kst.kst}: ${f.path} ✓`}
+  catch(e){$("#setStatus").textContent="Fehler: "+e.message}
+};
+$("#copyUri").onclick=async()=>{try{await navigator.clipboard.writeText(redirectUri());toast("Kopiert")}catch(e){const r=document.createRange();r.selectNodeContents($("#redirUri"));const s=getSelection();s.removeAllRanges();s.addRange(r)}};
+
+/* ---------- Start ---------- */
+(async function(){
+  if("serviceWorker" in navigator&&location.protocol==="https:"){try{navigator.serviceWorker.register("sw.js")}catch(e){}}
+  renderTeams();fillAddr();renderHA();startGPS();initCompass();await renderList();
+  await initMsal();
+  if(account&&navigator.onLine){try{await loadTeams(false)}catch(e){}if(S.kst)loadSubfolders(S.kst.id,false).catch(()=>{})}
+  if(S.autoUpload&&account)processQueue();
+  if(!S.clientId)openSettings();
+})();
+</script>
+</body>
+</html>
