@@ -202,7 +202,7 @@ dialog h3{font:700 13px var(--f-display);letter-spacing:.16em;text-transform:upp
     <div class="row"><h2>Einstellungen</h2><button class="iconbtn" value="close" aria-label="Schließen">✕</button></div>
 
     <h3>Ablage in Teams</h3>
-    <div class="field"><label for="sTarget">Name des Zielordners im Team</label><input type="text" id="sTarget" placeholder="Bilder & Doku"></div>
+    <div class="field"><label for="sTarget">Name des Zielordners im Team</label><input type="text" id="sTarget" placeholder="Bilder und Doku"></div>
     <p class="help">Das Tool sucht diesen Ordner im Team der gewählten Kostenstelle (in der Dateiablage und in den Kanal-Ordnern) und merkt ihn sich.</p>
     <div class="field"><label for="sFolderDef">Standard-Ordner für neue Kostenstellen</label><select id="sFolderDef"><option value="street">Automatisch nach Straße</option><option value="root">Direkt in den Zielordner</option></select></div>
     <label class="check"><input type="checkbox" id="sDay"> Darin zusätzlich Unterordner pro Tag (JJJJ-MM-TT)</label>
@@ -247,7 +247,7 @@ dialog h3{font:700 13px var(--f-display);letter-spacing:.16em;text-transform:upp
 const CONFIG={
   clientId:"7674477e-d66a-459c-ad83-69af456d0cd3", // Anwendungs-ID (Client-ID) aus Microsoft Entra
   tenantId:"10af70ff-f844-4dfa-832f-b8f451b23e55", // Verzeichnis-ID (Tenant-ID) aus Microsoft Entra
-  targetName:"Bilder & Doku",  // Zielordner im Team
+  targetName:"Bilder und Doku", // Zielordner im Team
   folderDefault:"street",      // "street" = Unterordner pro Straße, "root" = direkt in den Zielordner
   dayFolder:false,             // zusätzlich Unterordner pro Tag
   autoUpload:true,             // automatisch hochladen
@@ -267,13 +267,14 @@ Oberflächenstärke | Stärke (cm)`,
 
 /* ---------- Speicher ---------- */
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-const DEF={kst:null,teams:[],folders:{},targetName:"Bilder & Doku",folderDefault:"street",prefs:{},subfolders:{},dayFolder:false,clientId:"",tenantId:"organizations",gkey:"",mapType:"roadmap",autoUpload:true,quality:0.85,seriesText:"",uploadOriginal:true,logoInStamp:true};
+const DEF={kst:null,teams:[],folders:{},targetName:"Bilder und Doku",folderDefault:"street",prefs:{},subfolders:{},dayFolder:false,clientId:"",tenantId:"organizations",gkey:"",mapType:"roadmap",autoUpload:true,quality:0.85,seriesText:"",uploadOriginal:true,logoInStamp:true};
 const LOCKED=!!CONFIG.clientId;
 let S=Object.assign({},DEF,{targetName:CONFIG.targetName||DEF.targetName,folderDefault:CONFIG.folderDefault||"street",dayFolder:CONFIG.dayFolder,autoUpload:CONFIG.autoUpload,seriesText:CONFIG.series||"",uploadOriginal:CONFIG.uploadOriginal,logoInStamp:CONFIG.logoInStamp},LS.get("bk.settings",{}));
 if(LOCKED){S.clientId=CONFIG.clientId.trim();S.tenantId=(CONFIG.tenantId||"organizations").trim()}
 if(CONFIG.gkey)S.gkey=CONFIG.gkey;
 /* Fotoreihen: zentrale Vorgabe gilt, außer der Nutzer hat sie selbst geändert */
 if(!S.seriesCustom)S.seriesText=CONFIG.series||"";
+if(!S.targetCustom&&S.targetName!==CONFIG.targetName){S.targetName=CONFIG.targetName;S.folders={};S.subfolders={}}
 const saveS=()=>LS.set("bk.settings",S);
 const $=s=>document.querySelector(s);
 
@@ -738,7 +739,8 @@ const folderName=s=>(s||"").normalize("NFC").replace(/["*:<>?\/\\|]+/g,"").repla
 /* Zielordner im Team suchen: Ablage-Wurzel → Kanal-Ordner → Suche */
 async function findTarget(gid,interactive){
   const c=S.folders[gid];if(c&&c.name===S.targetName)return c;
-  const want=S.targetName.trim().toLowerCase(),match=x=>x.folder&&x.name.toLowerCase().includes(want);
+  const norm=t=>(t||"").toLowerCase().replace(/&/g," und ").replace(/\s+/g," ").trim();
+  const want=norm(S.targetName),match=x=>x.folder&&norm(x.name).includes(want);
   const drive=await graph(`/groups/${gid}/drive?$select=id`,{},interactive);
   const kids=async id=>((await graph(`/drives/${drive.id}/items/${id}/children?$select=id,name,folder&$top=200`,{},interactive)).value||[]).filter(x=>x.folder);
   const l1=await kids("root");let hit=l1.find(match),path=hit?hit.name:"";
@@ -814,7 +816,8 @@ function readForm(){
   const st=$("#sSeries").value.replace(/\r/g,"").trim(),def=(CONFIG.series||"").trim();
   S.seriesCustom=!!st&&st!==def;
   Object.assign(S,{seriesText:S.seriesCustom?st:def,uploadOriginal:$("#sOrig").checked,logoInStamp:$("#sLogo").checked});
-  const tgt=$("#sTarget").value.trim()||"Bilder & Doku";if(tgt!==S.targetName)S.folders={};
+  const tgt=$("#sTarget").value.trim()||CONFIG.targetName;if(tgt!==S.targetName){S.folders={};S.subfolders={}}
+  S.targetCustom=tgt!==CONFIG.targetName;
   Object.assign(S,{targetName:tgt,folderDefault:$("#sFolderDef").value,autoUpload:$("#sAuto").checked,dayFolder:$("#sDay").checked,
     clientId:$("#sClient").value.trim(),tenantId:$("#sTenant").value.trim()||"organizations",gkey:$("#sKey").value.trim(),mapType:$("#sMap").value,quality:+$("#sQual").value});
   saveS();renderProject();renderFolders();renderTarget();renderHA();return clientChanged;
