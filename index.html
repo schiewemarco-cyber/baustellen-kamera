@@ -85,6 +85,12 @@ input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{ou
 .pill{font:700 12px/1 var(--f-display);letter-spacing:.1em;text-transform:uppercase;padding:5px 8px;border-radius:2px;border:1px solid currentColor;white-space:nowrap}
 .pill.ok{color:var(--ok)} .pill.wait{color:var(--warn)} .pill.err{color:var(--bad)} .pill.run{color:var(--brand-text)}
 .empty{color:var(--muted);font-size:15px}
+.item{grid-template-columns:64px 1fr auto!important}
+.item .pill{justify-self:start;margin-top:4px;display:inline-block}
+.del{width:36px;height:36px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:2px;cursor:pointer;font-size:16px;line-height:1}
+.del.sure{background:var(--bad);border-color:var(--bad);color:#fff;width:auto;padding:0 8px;font:700 13px var(--f-display)}
+.clearbox{display:flex;flex-direction:column;gap:10px;border-left:5px solid var(--bad);padding:10px 12px;background:var(--field);font-size:15px}
+.btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}
 .inrow{display:flex;gap:8px;align-items:stretch}
 .inrow input{flex:1}
 .steps{display:flex;flex-wrap:wrap;gap:6px}
@@ -188,6 +194,11 @@ dialog h3{font:700 13px var(--f-display);letter-spacing:.16em;text-transform:upp
 
   <section class="panel">
     <div class="row"><span class="label">Verlauf</span><button class="link" id="btnRetry">Alle wartenden hochladen</button></div>
+    <div class="row"><span></span><button class="link" id="btnClear">Verlauf leeren</button></div>
+    <div class="clearbox" id="clearBox" hidden>
+      <div id="clearText"></div>
+      <div class="btns"><button type="button" class="btn" id="clearCancel">Abbrechen</button><button type="button" class="btn" id="clearDone">Nur hochgeladene löschen</button><button type="button" class="btn danger" id="clearAll">Alle löschen</button></div>
+    </div>
     <ul class="list" id="list"><li class="empty">Noch keine Fotos. Tippe unten auf „Foto aufnehmen“.</li></ul>
   </section>
 </div>
@@ -653,6 +664,17 @@ $("#btnUpload").onclick=()=>processQueue(true);
 $("#btnRetry").onclick=()=>processQueue(true);
 
 /* ---------- Verlauf ---------- */
+/* Verlauf leeren */
+$("#btnClear").onclick=async()=>{const items=await DB.all();if(!items.length){toast("Der Verlauf ist schon leer.");return}
+  const open=items.filter(i=>i.status!=="hochgeladen").length;
+  $("#clearText").textContent=open?`${items.length} Fotos im Verlauf, davon ${open} noch nicht hochgeladen. Nicht hochgeladene Fotos gehen beim Löschen verloren – vorher bei Bedarf antippen und „Speichern / Teilen“.`:`Alle ${items.length} Fotos sind hochgeladen und bleiben in Teams erhalten.`;
+  $("#clearDone").hidden=!open||open===items.length;$("#clearBox").hidden=false};
+$("#clearCancel").onclick=()=>{$("#clearBox").hidden=true};
+async function clearWhere(f){for(const it of await DB.all())if(f(it))await DB.del(it.id);current=null;$("#previewPanel").hidden=true;$("#clearBox").hidden=true;await renderList();toast("Verlauf gelöscht")}
+$("#clearAll").onclick=()=>clearWhere(()=>true);
+$("#clearDone").onclick=()=>clearWhere(i=>i.status==="hochgeladen");
+/* Fotos, die beim Schließen der App mitten im Upload waren, wieder freigeben */
+async function unstick(){for(const it of await DB.all())if(it.status==="lädt"){it.status="wartet";await DB.put(it)}}
 async function renderList(){
   const items=(await DB.all()).sort((a,b)=>b.created-a.created),ul=$("#list");ul.textContent="";
   if(!items.length){ul.innerHTML='<li class="empty">Noch keine Fotos. Tippe unten auf „Foto aufnehmen“.</li>'}
@@ -665,7 +687,12 @@ async function renderList(){
     if(it.webUrl){const l=document.createElement("a");l.href=it.webUrl;l.target="_blank";l.rel="noopener";l.className="link";l.textContent="In Teams/OneDrive öffnen";mid.appendChild(l)}
     li.appendChild(mid);
     const p=document.createElement("span");const map={wartet:["wait","Wartet"],"lädt":["run","Lädt …"],hochgeladen:["ok","Hochgeladen"],fehler:["err","Fehler"]}[it.status]||["wait",it.status];
-    p.className="pill "+map[0];p.textContent=map[1];li.appendChild(p);
+    p.className="pill "+map[0];p.textContent=map[1];mid.appendChild(p);
+    const del=document.createElement("button");del.type="button";del.className="del";del.textContent="✕";del.setAttribute("aria-label","Foto aus dem Verlauf löschen");
+    del.onclick=async e=>{e.stopPropagation();
+      if(it.status!=="hochgeladen"&&!del.classList.contains("sure")){del.classList.add("sure");del.textContent="Löschen?";setTimeout(()=>{if(del.isConnected){del.classList.remove("sure");del.textContent="✕"}},4000);return}
+      await DB.del(it.id);if(current&&current.id===it.id){current=null;$("#previewPanel").hidden=true}await renderList()};
+    li.appendChild(del);
     if(it.blob)li.onclick=e=>{if(e.target.tagName!=="A"){current=it;showPreview(it);$("#previewPanel").scrollIntoView({behavior:"smooth"})}};
     ul.appendChild(li);
   }
@@ -855,7 +882,7 @@ $("#copyUri").onclick=async()=>{try{await navigator.clipboard.writeText(redirect
 /* ---------- Start ---------- */
 (async function(){
   if("serviceWorker" in navigator&&location.protocol==="https:"){try{navigator.serviceWorker.register("sw.js")}catch(e){}}
-  renderTeams();fillAddr();renderHA();startGPS();initCompass();await renderList();
+  renderTeams();fillAddr();renderHA();startGPS();initCompass();await unstick();await renderList();
   await initMsal();
   if(account&&navigator.onLine){try{await loadTeams(false)}catch(e){}if(S.kst)loadSubfolders(S.kst.id,false).catch(()=>{})}
   if(S.autoUpload&&account)processQueue();
