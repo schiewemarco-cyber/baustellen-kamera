@@ -251,6 +251,7 @@ const CONFIG={
   folderDefault:"street",      // "street" = Unterordner pro Straße, "root" = direkt in den Zielordner
   dayFolder:false,             // zusätzlich Unterordner pro Tag
   autoUpload:true,             // automatisch hochladen
+  domain:"h-s-bau.de",         // nur Konten dieser Firmen-Domain zulassen
   gkey:"",                     // optional: Google-Maps-API-Schlüssel
   // Fotoreihen: "# Name" beginnt eine Reihe, "Schritt | Messwert (Einheit)" fragt einen Wert ab
   series:`# Hausanschluss Westnetz
@@ -672,15 +673,25 @@ async function renderList(){
 async function prune(){const items=(await DB.all()).filter(i=>i.status==="hochgeladen").sort((a,b)=>b.created-a.created);for(const it of items.slice(20))await DB.del(it.id)}
 
 /* ---------- Microsoft-Anmeldung & Upload ---------- */
-const SCOPES=["Files.ReadWrite.All","Team.ReadBasic.All"];let msalApp=null,account=null;
+const SCOPES=["Files.ReadWrite.All","Team.ReadBasic.All"];let msalApp=null,account=null,wrongAccount="";
+/* Immer Kontoauswahl zeigen und Firmen-Domain vorschlagen */
+const loginOpts=()=>({scopes:SCOPES,prompt:"select_account",domainHint:CONFIG.domain||undefined,loginHint:undefined});
 const redirectUri=()=>location.origin+location.pathname;
 async function initMsal(){
   msalApp=null;account=null;
   if(window.msal&&S.clientId&&window.isSecureContext){try{
     msalApp=new msal.PublicClientApplication({auth:{clientId:S.clientId.trim(),authority:`https://login.microsoftonline.com/${(S.tenantId||"organizations").trim()}`,redirectUri:redirectUri()},cache:{cacheLocation:"localStorage"}});
     await msalApp.initialize();
-    const r=await msalApp.handleRedirectPromise();if(r&&r.account)msalApp.setActiveAccount(r.account);
-    account=msalApp.getActiveAccount()||msalApp.getAllAccounts()[0]||null;if(account)msalApp.setActiveAccount(account);
+    const r=await msalApp.handleRedirectPromise();
+    const dom=(CONFIG.domain||"").toLowerCase(),ok=a=>!dom||((a&&a.username)||"").toLowerCase().endsWith("@"+dom);
+    if(r&&r.account){
+      if(ok(r.account))msalApp.setActiveAccount(r.account);
+      else{wrongAccount=r.account.username;try{await msalApp.clearCache({account:r.account})}catch(e){}}
+    }
+    account=msalApp.getActiveAccount()||msalApp.getAllAccounts().find(ok)||null;
+    if(account&&!ok(account))account=null;
+    if(account)msalApp.setActiveAccount(account);
+    if(wrongAccount){const m=`Angemeldet war ${wrongAccount}. Bitte mit dem Firmenkonto (@${dom}) anmelden – im Microsoft-Fenster „Anderes Konto verwenden“ wählen.`;toast(m);$("#bannerText").textContent=m}
   }catch(e){msalApp=null;const m="Anmeldung: "+(e.errorMessage||e.message);toast(m);$("#setStatus").textContent=m}}
   updateCloud();
 }
@@ -688,7 +699,7 @@ function updateCloud(){
   const ready=!!S.clientId;
   $("#setupBanner").hidden=ready&&!!account;
   if(!ready){$("#bannerText").textContent="Upload in Teams ist noch nicht eingerichtet. Fotos werden auf dem Gerät gesammelt und später hochgeladen.";$("#bannerSettings").textContent="Jetzt einrichten"}
-  else if(!account){$("#bannerText").textContent="Einmal mit deinem Firmenkonto anmelden, dann die Kostenstelle wählen.";$("#bannerSettings").textContent="Bei Microsoft anmelden"}
+  else if(!account){if(!wrongAccount)$("#bannerText").textContent="Einmal mit deinem Firmenkonto anmelden, dann die Kostenstelle wählen.";$("#bannerSettings").textContent="Bei Microsoft anmelden"}
   if(!ready)setChip("#chipCloud","Upload nicht eingerichtet","bad");
   else if(!account)setChip("#chipCloud","Bei Microsoft anmelden","warn");
   else if(!S.kst)setChip("#chipCloud","Kostenstelle wählen","warn");
@@ -739,7 +750,7 @@ async function findTarget(gid,interactive){
 }
 async function token(interactive){
   if(!msalApp)throw new Error(loginProblem()||"Anmeldung nicht eingerichtet (Einstellungen → Client-ID).");
-  if(!account){if(interactive){await msalApp.loginRedirect({scopes:SCOPES});return new Promise(()=>{})}throw new Error("Nicht bei Microsoft angemeldet.")}
+  if(!account){if(interactive){await msalApp.loginRedirect(loginOpts());return new Promise(()=>{})}throw new Error("Nicht bei Microsoft angemeldet.")}
   try{return (await msalApp.acquireTokenSilent({scopes:SCOPES,account})).accessToken}
   catch(e){if(interactive){await msalApp.acquireTokenRedirect({scopes:SCOPES,account});return new Promise(()=>{})}throw new Error("Anmeldung abgelaufen – bitte neu anmelden.")}
 }
