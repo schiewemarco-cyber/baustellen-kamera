@@ -218,6 +218,8 @@ dialog h3{font:700 13px var(--f-display);letter-spacing:.16em;text-transform:upp
     <div class="field"><label for="sFolderDef">Standard-Ordner für neue Kostenstellen</label><select id="sFolderDef"><option value="street">Automatisch nach Straße</option><option value="root">Direkt in den Zielordner</option></select></div>
     <label class="check"><input type="checkbox" id="sDay"> Darin zusätzlich Unterordner pro Tag (JJJJ-MM-TT)</label>
     <label class="check"><input type="checkbox" id="sAuto"> Automatisch hochladen nach jeder Aufnahme</label>
+    <label class="check"><input type="checkbox" id="sNotify"> Team-Besitzer täglich per Teams-Chat über neue Fotos informieren</label>
+    <p class="help" id="notifyHelp"></p>
     <p class="help" id="entraLocked" hidden>Die Microsoft-Anmeldung ist für alle Nutzer zentral eingerichtet. Einfach anmelden und die Kostenstelle wählen.</p>
     <div id="entraFields" style="display:contents">
     <div class="field"><label for="sClient">Anwendungs-ID (Client-ID) aus Microsoft Entra</label><input type="text" id="sClient" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
@@ -262,7 +264,10 @@ const CONFIG={
   folderDefault:"street",      // "street" = Unterordner pro Straße, "root" = direkt in den Zielordner
   dayFolder:false,             // zusätzlich Unterordner pro Tag
   autoUpload:true,             // automatisch hochladen
+  notifyOwners:true,           // Team-Besitzer per Teams-Chat über neue Fotos informieren
+  notifyTime:"15:00",          // Uhrzeit der täglichen Zusammenfassung
   domain:"h-s-bau.de",         // nur Konten dieser Firmen-Domain zulassen
+  adminName:"Marco Schiewe",   // Ansprechpartner, der in Hinweisen genannt wird
   gkey:"",                     // optional: Google-Maps-API-Schlüssel
   // Fotoreihen: "# Name" beginnt eine Reihe, "Schritt | Messwert (Einheit)" fragt einen Wert ab
   series:`# Hausanschluss Westnetz
@@ -593,7 +598,7 @@ async function drawStamp(g,W,H,d){
   for(const l of L){y+=lh(l);g.font=font(l,k);g.fillStyle=l.c||"#ffffff";g.fillText(l.t,W-m-pad,y-l.s*u*k*0.28)}
   /* Firmenlogo über dem Datenblock */
   const logo=document.querySelector(".logo");
-  if(d.logo&&logo&&logo.complete&&logo.naturalWidth){const lhgt=Math.min(11*u,by-m),lw=lhgt*logo.naturalWidth/logo.naturalHeight;
+  if(d.logo&&logo&&logo.complete&&logo.naturalWidth){let lhgt=Math.min(6*u,by-m),lw=lhgt*logo.naturalWidth/logo.naturalHeight;if(lw>bw*0.6){lw=bw*0.6;lhgt=lw*logo.naturalHeight/logo.naturalWidth}
     if(lhgt>3*u){g.drawImage(logo,W-m-lw,by-lhgt-0.8*u,lw,lhgt)}}
 }
 function wrapText(t,max){const out=[];let line="";for(const w of t.split(/\s+/)){if((line+" "+w).trim().length>max&&line){out.push(line);line=w}else line=(line+" "+w).trim()}if(line)out.push(line);return out.slice(0,3)}
@@ -720,7 +725,12 @@ async function initMsal(){
     if(account&&!ok(account))account=null;
     if(account)msalApp.setActiveAccount(account);
     if(wrongAccount){const m=`Angemeldet war ${wrongAccount}. Bitte mit dem Firmenkonto (@${dom}) anmelden – im Microsoft-Fenster „Anderes Konto verwenden“ wählen.`;toast(m);$("#bannerText").textContent=m}
-  }catch(e){msalApp=null;const m="Anmeldung: "+(e.errorMessage||e.message);toast(m);$("#setStatus").textContent=m}}
+  }catch(e){const raw=(e.errorMessage||e.message||"")+" "+(e.errorCode||"");
+    let m="Anmeldung: "+(e.errorMessage||e.message);
+    if(/AADSTS50105|not assigned|nicht zugewiesen/i.test(raw)){m=`Du bist für die Baukamera nicht freigeschaltet. Bitte bei ${CONFIG.adminName||"der IT"} melden.`}
+    else if(/AADSTS65001|consent/i.test(raw)){m="Die Baukamera ist für dein Konto noch nicht freigegeben (Administratorzustimmung fehlt)."}
+    else{msalApp=null}
+    toast(m);$("#setStatus").textContent=m;const bt=$("#bannerText");if(bt){bt.textContent=m;$("#setupBanner").hidden=false}}}
   updateCloud();
 }
 function updateCloud(){
@@ -777,14 +787,16 @@ async function findTarget(gid,interactive){
   if(!hit)throw new Error(`Ordner „${S.targetName}“ im Team nicht gefunden.`);
   S.folders[gid]={driveId:drive.id,itemId:hit.id,name:S.targetName,path};saveS();if(S.kst&&S.kst.id===gid)renderTarget();return S.folders[gid];
 }
-async function token(interactive){
+const SCOPES_NOTIFY=["Chat.Create","ChatMessage.Send","GroupMember.Read.All"];
+async function token(interactive,scopes){
+  if(scopes){if(!msalApp||!account)throw new Error("Nicht angemeldet.");return (await msalApp.acquireTokenSilent({scopes,account})).accessToken}
   if(!msalApp)throw new Error(loginProblem()||"Anmeldung nicht eingerichtet (Einstellungen → Client-ID).");
   if(!account){if(interactive){await msalApp.loginRedirect(loginOpts());return new Promise(()=>{})}throw new Error("Nicht bei Microsoft angemeldet.")}
   try{return (await msalApp.acquireTokenSilent({scopes:SCOPES,account})).accessToken}
   catch(e){if(interactive){await msalApp.acquireTokenRedirect({scopes:SCOPES,account});return new Promise(()=>{})}throw new Error("Anmeldung abgelaufen – bitte neu anmelden.")}
 }
-async function graph(path,opt={},interactive=false){
-  const tk=await token(interactive);
+async function graph(path,opt={},interactive=false,scopes){
+  const tk=await token(interactive,scopes);
   const r=await fetch("https://graph.microsoft.com/v1.0"+path,{...opt,headers:{Authorization:"Bearer "+tk,...(opt.headers||{})}});
   if(!r.ok){let m="Fehler "+r.status;try{const j=await r.json();if(j.error&&j.error.message)m=j.error.message}catch(e){}throw new Error(m)}
   return r.status===204?null:r.json();
@@ -802,10 +814,63 @@ async function upload(it,interactive){
   if(!it.kst){if(!S.kst)throw new Error("Keine Kostenstelle gewählt.");it.kst={...S.kst}}
   const f=await findTarget(it.kst.id,interactive);
   const dir=(it.sub||[]).map(encodeURIComponent);
-  if(!it.mainDone){const r=await putFile(f,[...dir,encodeURIComponent(it.name)].join("/"),it.blob,"image/jpeg",interactive);it.mainDone=true;it.webUrl=(r&&r.webUrl)||"";await DB.put(it)}
+  if(!it.mainDone){const r=await putFile(f,[...dir,encodeURIComponent(it.name)].join("/"),it.blob,"image/jpeg",interactive);it.mainDone=true;it.webUrl=(r&&r.webUrl)||"";
+    it.parentId=r&&r.parentReference&&r.parentReference.id;it.driveId=f.driveId;await DB.put(it);noteUpload(it)}
   if(it.orig&&!it.origDone){await putFile(f,[...dir,"Originale",encodeURIComponent(it.origName)].join("/"),it.orig,it.orig.type||"image/jpeg",interactive);it.origDone=true;it.orig=null;await DB.put(it)}
   return {webUrl:it.webUrl};
 }
+/* ---------- Benachrichtigung der Team-Besitzer ---------- */
+let NQ=LS.get("bk.notify",{}),notifyTimer=null,notifyWarned=false;
+/* Stichzeit: Uploads bis zur Uhrzeit X gehören zum heutigen Termin, danach zum nächsten Tag */
+function cutoffFor(ts){const [h,m]=(CONFIG.notifyTime||"15:00").split(":").map(Number);const d=new Date(ts);d.setHours(h,m||0,0,0);if(ts>=d.getTime())d.setDate(d.getDate()+1);return d.getTime()}
+function noteUpload(it){
+  if(S.notifyOwners===false||CONFIG.notifyOwners===false||!it.kst)return;
+  const now=Date.now(),due=cutoffFor(now),key=it.kst.id+"|"+due;
+  const g=NQ[key]||(NQ[key]={gid:it.kst.id,kst:it.kst,count:0,folders:{},first:now,last:0,due});
+  g.count++;g.last=now;const path=[S.targetName,...(it.sub||[])].join(" › ");
+  g.folders[path]=g.folders[path]||{n:0,driveId:it.driveId,parentId:it.parentId};g.folders[path].n++;
+  LS.set("bk.notify",NQ);scheduleNotify();
+}
+function scheduleNotify(){
+  clearTimeout(notifyTimer);const ks=Object.keys(NQ);if(!ks.length)return;
+  const next=Math.min(...ks.map(k=>NQ[k].due||0));
+  notifyTimer=setTimeout(sendNotifications,Math.min(Math.max(2000,next-Date.now()),6*3600000));
+}
+const esc=t=>String(t||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let meCache=null;
+async function sendNotifications(){
+  if(!account||!navigator.onLine){scheduleNotify();return}
+  for(const key of Object.keys(NQ)){
+    const g=NQ[key],gid=g.gid||key.split("|")[0];if(Date.now()<(g.due||0))continue;
+    try{
+      if(!meCache)meCache=await graph("/me?$select=id,displayName");
+      const owners=((await graph(`/groups/${gid}/owners?$select=id,displayName`,{},false,SCOPES_NOTIFY)).value||[]).filter(o=>o.id!==meCache.id);
+      if(owners.length){
+        const lines=[];
+        for(const [path,fo] of Object.entries(g.folders)){
+          let url="";try{if(fo.driveId&&fo.parentId)url=(await graph(`/drives/${fo.driveId}/items/${fo.parentId}?$select=webUrl`)).webUrl}catch(e){}
+          lines.push(`${fo.n} × ${esc(path)}${url?` – <a href="${esc(url)}">Ordner öffnen</a>`:""}`);
+        }
+        const k=g.kst,a=new Date(g.first),b=new Date(g.last),late=Date.now()-g.due>3600000;
+        const span=fmtDate(a)===fmtDate(b)?`${fmtDate(a)}, ${fmtTime(a).slice(0,5)}–${fmtTime(b).slice(0,5)} Uhr`:`${fmtDate(a)} bis ${fmtDate(b)}`;
+        const html=`📷 <b>Tageszusammenfassung Baukamera</b><br><b>${g.count} neue${g.count===1?"s":""} Foto${g.count===1?"":"s"}</b> in <b>${esc(k.kst?"KST "+k.kst+" · "+k.name:k.name)}</b><br>${lines.join("<br>")}<br><i>von ${esc(meCache.displayName)}, aufgenommen ${span}${late?" (nachgereicht)":""}</i>`;
+        for(const o of owners){
+          const chat=await graph("/chats",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chatType:"oneOnOne",members:[
+            {"@odata.type":"#microsoft.graph.aadUserConversationMember",roles:["owner"],"user@odata.bind":`https://graph.microsoft.com/v1.0/users('${meCache.id}')`},
+            {"@odata.type":"#microsoft.graph.aadUserConversationMember",roles:["owner"],"user@odata.bind":`https://graph.microsoft.com/v1.0/users('${o.id}')`}]})},false,SCOPES_NOTIFY);
+          await graph(`/chats/${chat.id}/messages`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({body:{contentType:"html",content:html}})},false,SCOPES_NOTIFY);
+        }
+      }
+      delete NQ[key];LS.set("bk.notify",NQ);
+    }catch(e){
+      if(!notifyWarned){notifyWarned=true;toast("Team-Besitzer konnten nicht benachrichtigt werden: "+(e.errorMessage||e.message));}
+      if(/consent|AADSTS65001|Berechtigung|Authorization|403/i.test(e.message||"")){delete NQ[key];LS.set("bk.notify",NQ)}
+    }
+  }
+  scheduleNotify();
+}
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)scheduleNotify()});
+
 let busy=false;
 async function processQueue(interactive){
   if(busy)return;
@@ -832,7 +897,7 @@ function openSettings(){
   $("#sTarget").value=S.targetName;$("#sFolderDef").value=S.folderDefault||"street";$("#sAuto").checked=!!S.autoUpload;$("#sDay").checked=!!S.dayFolder;
   $("#entraFields").style.display=LOCKED?"none":"contents";$("#entraHelp").hidden=LOCKED;$("#entraLocked").hidden=!LOCKED;
   $("#sKey").parentElement.hidden=!!CONFIG.gkey;
-  $("#sSeries").value=S.seriesText||"";$("#sOrig").checked=!!S.uploadOriginal;$("#sLogo").checked=!!S.logoInStamp;
+  $("#sSeries").value=S.seriesText||"";$("#sOrig").checked=!!S.uploadOriginal;$("#sNotify").checked=S.notifyOwners!==false;$("#notifyHelp").textContent=`Zusammenfassung täglich um ${CONFIG.notifyTime||"15:00"} Uhr. Fotos nach dieser Uhrzeit kommen in die Zusammenfassung vom nächsten Tag. Die App muss dafür um diese Zeit oder danach einmal geöffnet sein.`;$("#sLogo").checked=!!S.logoInStamp;
   $("#sClient").value=S.clientId;$("#sTenant").value=S.tenantId;$("#sKey").value=S.gkey;$("#sMap").value=S.mapType;$("#sQual").value=String(S.quality);
   const f=S.kst&&S.folders[S.kst.id];
   $("#redirUri").textContent=redirectUri();$("#setStatus").textContent=f?`KST ${S.kst.kst}: ${f.path} ✓`:"";
@@ -842,7 +907,7 @@ function readForm(){
   const clientChanged=S.clientId!==$("#sClient").value.trim()||S.tenantId!==($("#sTenant").value.trim()||"organizations");
   const st=$("#sSeries").value.replace(/\r/g,"").trim(),def=(CONFIG.series||"").trim();
   S.seriesCustom=!!st&&st!==def;
-  Object.assign(S,{seriesText:S.seriesCustom?st:def,uploadOriginal:$("#sOrig").checked,logoInStamp:$("#sLogo").checked});
+  Object.assign(S,{seriesText:S.seriesCustom?st:def,uploadOriginal:$("#sOrig").checked,notifyOwners:$("#sNotify").checked,logoInStamp:$("#sLogo").checked});
   const tgt=$("#sTarget").value.trim()||CONFIG.targetName;if(tgt!==S.targetName){S.folders={};S.subfolders={}}
   S.targetCustom=tgt!==CONFIG.targetName;
   Object.assign(S,{targetName:tgt,folderDefault:$("#sFolderDef").value,autoUpload:$("#sAuto").checked,dayFolder:$("#sDay").checked,
@@ -886,6 +951,7 @@ $("#copyUri").onclick=async()=>{try{await navigator.clipboard.writeText(redirect
   await initMsal();
   if(account&&navigator.onLine){try{await loadTeams(false)}catch(e){}if(S.kst)loadSubfolders(S.kst.id,false).catch(()=>{})}
   if(S.autoUpload&&account)processQueue();
+  if(account)scheduleNotify();
   if(!S.clientId)openSettings();
 })();
 </script>

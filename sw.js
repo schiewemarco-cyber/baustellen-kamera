@@ -1,7 +1,7 @@
 /* Baustellen-Kamera – Offline-Speicher
    Die App startet damit auch ohne Netz. Bei Netz wird immer die neueste
    Version geladen. Nach einer Änderung an dieser Datei die Nummer erhöhen. */
-const CACHE = "baustellen-kamera-v5";
+const CACHE = "baustellen-kamera-v6";
 const CORE = [
   "./",
   "./index.html",
