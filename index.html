@@ -15,109 +15,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.27.0/lib/msal-browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.min.js"></script>
-<style>
-/* Bewusst nur helles Firmendesign wie h-s-bau.de (kräftig, auch in der Sonne gut lesbar).
-   Layout: H.S. Schulz – oranger Streifen, grüner Kopf mit Logo-Kachel, Inhalt in einer Spalte, grüner Auslöser fest unten */
-:root{
-  --bg:#ffffff; --surface:#ffffff; --field:#f2f4f1; --ink:#1b1d1a; --muted:#5d675c; --line:#d3dbd1;
-  --brand:#41934a; --brand-ink:#ffffff; --brand-text:#2e7d37;
-  --accent:#e8a038; --accent-ink:#ffffff; --rule:#000000;
-  --ok:#2e8a3f; --warn:#b07a12; --bad:#c4302f;
-  --f-display:"Barlow","Arial",system-ui,sans-serif;
-  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
-  color-scheme:light;
-}
-*{box-sizing:border-box}
-[hidden]{display:none!important}
-html,body{margin:0}
-body{background:var(--bg);color:var(--ink);font:16px/1.45 var(--f-body);padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))}
-.topbar{background:var(--accent);height:calc(8px + env(safe-area-inset-top,0px))}
-.band{background:var(--brand);color:var(--brand-ink);padding-bottom:22px!important;
-  padding:14px max(16px,env(safe-area-inset-right,0px)) 14px max(16px,env(safe-area-inset-left,0px))}
-header{max-width:640px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px 14px;flex-wrap:wrap}
-header h1{order:3;flex:1 1 100%!important}
-.logo{height:40px;width:auto;display:block;flex:none}
-header h1{font:700 26px/1.05 var(--f-display);margin:0;flex:1;min-width:0}
-header h1 small{display:block;margin-top:4px;font:700 12px/1.3 var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.band .kst{max-width:640px;margin:16px auto 0;padding:16px 0 4px 14px;border-left:2px solid var(--rule);display:flex;flex-direction:column;gap:10px}
-.band .label{color:#fff;letter-spacing:.2em}
-.band .link{color:#fff}
-.band select{background:#fff;color:#1b1d1a;border:0;font-weight:600}
-.band .sub{color:rgba(255,255,255,.92)}
-.band .newfolder{display:flex;flex-direction:column;gap:8px;background:rgba(0,0,0,.18);padding:12px;border-radius:2px}
-.band .newfolder input{background:#fff;color:#1b1d1a;border:0}
-.band .newfolder .btn{background:#fff;color:#1b1d1a;border:0}
-.band .newfolder .btn.primary{background:var(--accent);color:#fff}
-.wrap{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:14px;
-  padding:16px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px))}
-.iconbtn{width:44px;height:44px;border-radius:2px;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer;flex:none}
-.band .iconbtn{background:transparent;border:2px solid rgba(255,255,255,.9);color:#fff}
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font:600 14px/1.2 var(--f-display);color:var(--ink)}
-.chip i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
-.chip.ok i{background:var(--ok)} .chip.warn i{background:var(--warn)} .chip.bad i{background:var(--bad)}
-button.chip{cursor:pointer}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:16px;display:flex;flex-direction:column;gap:12px}
-.label{font:700 12px/1 var(--f-display);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
-.utm{font:600 clamp(18px,5.4vw,24px)/1.25 var(--f-mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.utm span{color:var(--muted);font-weight:500}
-.sub{font:500 13px/1.4 var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
-.grid{display:grid;grid-template-columns:1fr 92px;gap:8px}
-.field{display:flex;flex-direction:column;gap:4px;min-width:0}
-.field label{font:700 12px/1 var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
-input[type=text],input[type=url],input[type=password],select{width:100%;min-width:0;font:16px/1.3 var(--f-body);padding:10px 11px;border-radius:2px;border:1px solid var(--line);background:var(--field);color:var(--ink)}
-input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-.row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.link{background:none;border:0;padding:0;color:var(--brand-text);font:700 15px var(--f-display);cursor:pointer;text-decoration:none}
-.link::after{content:" »"}
-.banner{border-left:5px solid var(--accent);background:var(--surface);border-radius:2px;padding:12px 14px;font-size:15px}
-.preview img{width:100%;max-width:100%;border-radius:2px;display:block;border:1px solid var(--line)}
-.btns{display:flex;gap:8px;flex-wrap:wrap}
-.btn{flex:1 1 auto;min-height:46px;padding:10px 14px;border-radius:2px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:700 17px var(--f-display);cursor:pointer}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn.primary::after{content:" »"}
-.list{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
-.item{display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:center}
-.item img{width:64px;height:64px;object-fit:cover;border-radius:2px;background:var(--bg)}
-.item .nm{font:500 13px/1.3 var(--f-mono);overflow-wrap:anywhere;min-width:0}
-.item .er{font-size:13px;color:var(--bad)}
-.pill{font:700 12px/1 var(--f-display);letter-spacing:.1em;text-transform:uppercase;padding:5px 8px;border-radius:2px;border:1px solid currentColor;white-space:nowrap}
-.pill.ok{color:var(--ok)} .pill.wait{color:var(--warn)} .pill.err{color:var(--bad)} .pill.run{color:var(--brand-text)}
-.empty{color:var(--muted);font-size:15px}
-.item{grid-template-columns:64px 1fr auto!important}
-.item .pill{justify-self:start;margin-top:4px;display:inline-block}
-.del{width:36px;height:36px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:2px;cursor:pointer;font-size:16px;line-height:1}
-.del.sure{background:var(--bad);border-color:var(--bad);color:#fff;width:auto;padding:0 8px;font:700 13px var(--f-display)}
-.clearbox{display:flex;flex-direction:column;gap:10px;border-left:5px solid var(--bad);padding:10px 12px;background:var(--field);font-size:15px}
-.btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}
-.inrow{display:flex;gap:8px;align-items:stretch}
-.inrow input{flex:1}
-.steps{display:flex;flex-wrap:wrap;gap:6px}
-.step{padding:9px 12px;border:2px solid var(--line);border-radius:2px;background:var(--surface);font:700 15px var(--f-display);cursor:pointer;color:var(--ink)}
-.step.done{border-color:var(--brand);color:var(--brand-text)}
-.step.done::before{content:"✓ "}
-.step.cur{background:var(--brand);border-color:var(--brand);color:#fff}
-.warnline{color:var(--bad);font-size:14px;font-weight:600}
-textarea{width:100%;min-width:0;font:16px/1.4 var(--f-body);padding:10px 11px;border-radius:2px;border:1px solid var(--line);background:var(--field);color:var(--ink);resize:vertical}
-.shutter{position:fixed;left:0;right:0;bottom:0;z-index:5;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-top:1px solid var(--line);
-  padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
-.shutter button{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;max-width:640px;margin:0 auto;min-height:64px;border:0;border-radius:2px;background:var(--accent);color:#fff;font:700 clamp(18px,5vw,24px)/1.15 var(--f-display);cursor:pointer;padding:6px 14px;text-align:left}
-#haBox{display:flex;flex-direction:column;gap:10px}
-.shutter button[disabled]{opacity:.6}
-dialog{width:min(640px,100%);max-height:92dvh;border:1px solid var(--line);border-top:6px solid var(--brand);border-radius:3px;padding:0;background:var(--surface);color:var(--ink)}
-dialog::backdrop{background:rgba(0,0,0,.5)}
-dialog form{display:flex;flex-direction:column;gap:14px;padding:18px max(16px,env(safe-area-inset-right,0px)) 18px max(16px,env(safe-area-inset-left,0px))}
-dialog h2{font:700 24px var(--f-display);margin:0}
-dialog h3{font:700 13px var(--f-display);letter-spacing:.16em;text-transform:uppercase;margin:8px 0 0;color:var(--muted)}
-.check{display:flex;gap:10px;align-items:center;font-size:16px}
-.check input{width:22px;height:22px;accent-color:var(--brand)}
-.help{font-size:14px;color:var(--muted)}
-.help code{font:500 12px var(--f-mono);background:var(--bg);padding:1px 4px;border-radius:2px;overflow-wrap:anywhere}
-.status{font-size:15px}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:2px;font-size:15px;z-index:20;max-width:calc(100% - 32px)}
-@media (prefers-reduced-motion:no-preference){.btn,.shutter button{transition:transform .08s}.btn:active,.shutter button:active{transform:scale(.98)}}
-</style>
+<style>:root{--bg:#ffffff;--surface:#ffffff;--field:#f2f4f1;--ink:#1b1d1a;--muted:#5d675c;--line:#d3dbd1;--brand:#41934a;--brand-ink:#ffffff;--brand-text:#2e7d37;--accent:#e8a038;--accent-ink:#ffffff;--rule:#000000;--ok:#2e8a3f;--warn:#b07a12;--bad:#c4302f;--f-display:"Barlow","Arial",system-ui,sans-serif;--f-body:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;color-scheme:light}*{box-sizing:border-box}[hidden]{display:none!important}html,body{margin:0}body{background:var(--bg);color:var(--ink);font:16px/1.45 var(--f-body);padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))}.topbar{background:var(--accent);height:calc(8px + env(safe-area-inset-top,0px))}.band{background:var(--brand);color:var(--brand-ink);padding-bottom:22px!important;padding:14px max(16px,env(safe-area-inset-right,0px)) 14px max(16px,env(safe-area-inset-left,0px))}header{max-width:640px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px 14px;flex-wrap:wrap}header h1{order:3;flex:1 1 100%!important}.logo{height:40px;width:auto;display:block;flex:none}header h1{font:700 26px/1.05 var(--f-display);margin:0;flex:1;min-width:0}header h1 small{display:block;margin-top:4px;font:700 12px/1.3 var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.band .kst{max-width:640px;margin:16px auto 0;padding:16px 0 4px 14px;border-left:2px solid var(--rule);display:flex;flex-direction:column;gap:10px}.band .label{color:#fff;letter-spacing:.2em}.band .link{color:#fff}.band select{background:#fff;color:#1b1d1a;border:0;font-weight:600}.band .sub{color:rgba(255,255,255,.92)}.band .newfolder{display:flex;flex-direction:column;gap:8px;background:rgba(0,0,0,.18);padding:12px;border-radius:2px}.band .newfolder input{background:#fff;color:#1b1d1a;border:0}.band .newfolder .btn{background:#fff;color:#1b1d1a;border:0}.band .newfolder .btn.primary{background:var(--accent);color:#fff}.wrap{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:14px;padding:16px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px))}.iconbtn{width:44px;height:44px;border-radius:2px;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer;flex:none}.band .iconbtn{background:transparent;border:2px solid rgba(255,255,255,.9);color:#fff}.chips{display:flex;flex-wrap:wrap;gap:6px}.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font:600 14px/1.2 var(--f-display);color:var(--ink)}.chip i{width:8px;height:8px;border-radius:50%;background:var(--muted)}.chip.ok i{background:var(--ok)}.chip.warn i{background:var(--warn)}.chip.bad i{background:var(--bad)}button.chip{cursor:pointer}.panel{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:16px;display:flex;flex-direction:column;gap:12px}.label{font:700 12px/1 var(--f-display);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}.utm{font:600 clamp(18px,5.4vw,24px)/1.25 var(--f-mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.utm span{color:var(--muted);font-weight:500}.sub{font:500 13px/1.4 var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}.grid{display:grid;grid-template-columns:1fr 92px;gap:8px}.field{display:flex;flex-direction:column;gap:4px;min-width:0}.field label{font:700 12px/1 var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}input[type=text],input[type=url],input[type=password],select{width:100%;min-width:0;font:16px/1.3 var(--f-body);padding:10px 11px;border-radius:2px;border:1px solid var(--line);background:var(--field);color:var(--ink)}input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}.row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.link{background:none;border:0;padding:0;color:var(--brand-text);font:700 15px var(--f-display);cursor:pointer;text-decoration:none}.link::after{content:" »"}.banner{border-left:5px solid var(--accent);background:var(--surface);border-radius:2px;padding:12px 14px;font-size:15px}.preview img{width:100%;max-width:100%;border-radius:2px;display:block;border:1px solid var(--line)}.btns{display:flex;gap:8px;flex-wrap:wrap}.btn{flex:1 1 auto;min-height:46px;padding:10px 14px;border-radius:2px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:700 17px var(--f-display);cursor:pointer}.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}.btn.primary::after{content:" »"}.list{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}.item{display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:center}.item img{width:64px;height:64px;object-fit:cover;border-radius:2px;background:var(--bg)}.item .nm{font:500 13px/1.3 var(--f-mono);overflow-wrap:anywhere;min-width:0}.item .er{font-size:13px;color:var(--bad)}.pill{font:700 12px/1 var(--f-display);letter-spacing:.1em;text-transform:uppercase;padding:5px 8px;border-radius:2px;border:1px solid currentColor;white-space:nowrap}.pill.ok{color:var(--ok)}.pill.wait{color:var(--warn)}.pill.err{color:var(--bad)}.pill.run{color:var(--brand-text)}.empty{color:var(--muted);font-size:15px}.item{grid-template-columns:64px 1fr auto!important}.item .pill{justify-self:start;margin-top:4px;display:inline-block}.del{width:36px;height:36px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:2px;cursor:pointer;font-size:16px;line-height:1}.del.sure{background:var(--bad);border-color:var(--bad);color:#fff;width:auto;padding:0 8px;font:700 13px var(--f-display)}.clearbox{display:flex;flex-direction:column;gap:10px;border-left:5px solid var(--bad);padding:10px 12px;background:var(--field);font-size:15px}.btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}.inrow{display:flex;gap:8px;align-items:stretch}.inrow input{flex:1}.steps{display:flex;flex-wrap:wrap;gap:6px}.step{padding:9px 12px;border:2px solid var(--line);border-radius:2px;background:var(--surface);font:700 15px var(--f-display);cursor:pointer;color:var(--ink)}.step.done{border-color:var(--brand);color:var(--brand-text)}.step.done::before{content:"✓ "}.step.cur{background:var(--brand);border-color:var(--brand);color:#fff}.warnline{color:var(--bad);font-size:14px;font-weight:600}textarea{width:100%;min-width:0;font:16px/1.4 var(--f-body);padding:10px 11px;border-radius:2px;border:1px solid var(--line);background:var(--field);color:var(--ink);resize:vertical}.shutter{position:fixed;left:0;right:0;bottom:0;z-index:5;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-top:1px solid var(--line);padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}.shutter button{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;max-width:640px;margin:0 auto;min-height:64px;border:0;border-radius:2px;background:var(--accent);color:#fff;font:700 clamp(18px,5vw,24px)/1.15 var(--f-display);cursor:pointer;padding:6px 14px;text-align:left}#haBox{display:flex;flex-direction:column;gap:10px}.shutter button[disabled]{opacity:.6}dialog{width:min(640px,100%);max-height:92dvh;border:1px solid var(--line);border-top:6px solid var(--brand);border-radius:3px;padding:0;background:var(--surface);color:var(--ink)}dialog::backdrop{background:rgba(0,0,0,.5)}dialog form{display:flex;flex-direction:column;gap:14px;padding:18px max(16px,env(safe-area-inset-right,0px)) 18px max(16px,env(safe-area-inset-left,0px))}dialog h2{font:700 24px var(--f-display);margin:0}dialog h3{font:700 13px var(--f-display);letter-spacing:.16em;text-transform:uppercase;margin:8px 0 0;color:var(--muted)}.check{display:flex;gap:10px;align-items:center;font-size:16px}.check input{width:22px;height:22px;accent-color:var(--brand)}.help{font-size:14px;color:var(--muted)}.help code{font:500 12px var(--f-mono);background:var(--bg);padding:1px 4px;border-radius:2px;overflow-wrap:anywhere}.status{font-size:15px}.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:2px;font-size:15px;z-index:20;max-width:calc(100% - 32px)}@media (prefers-reduced-motion:no-preference){.btn,.shutter button{transition:transform .08s}.btn:active,.shutter button:active{transform:scale(.98)}}</style>
 </head>
 <body>
 <div class="topbar"></div>
@@ -145,17 +43,13 @@ dialog h3{font:700 13px var(--f-display);letter-spacing:.16em;text-transform:upp
   </section>
 </div>
 <div class="wrap">
-
   <div class="chips" aria-live="polite">
     <span class="chip" id="chipGps"><i></i><span>GPS wird gesucht …</span></span>
     <button type="button" class="chip" id="chipCompass"><i></i><span>Kompass …</span></button>
     <button type="button" class="chip" id="chipCloud"><i></i><span>Upload nicht eingerichtet</span></button>
     <span class="chip" id="chipQueue"><i></i><span>0 wartend</span></span>
   </div>
-
   <div class="banner" id="setupBanner" hidden><span id="bannerText">Upload in Teams ist noch nicht eingerichtet. Fotos werden auf dem Gerät gesammelt und später hochgeladen.</span> <button class="link" id="bannerSettings">Jetzt einrichten</button></div>
-
-
   <section class="panel" aria-labelledby="locHead">
     <div class="row"><span class="label" id="locHead">Aktueller Standort · UTM (ETRS89/WGS84)</span><span class="sub" id="acc"></span></div>
     <div class="utm" id="utm">— warte auf GPS —</div>
@@ -168,7 +62,6 @@ dialog h3{font:700 13px var(--f-display);letter-spacing:.16em;text-transform:upp
     </div>
     <div class="row"><span class="sub" id="addrSrc">Adresse wird automatisch ermittelt</span><button class="link" id="addrAuto" hidden>Wieder automatisch</button></div>
   </section>
-
   <section class="panel" aria-labelledby="noteHead">
     <span class="label" id="noteHead">Foto-Angaben</span>
     <div class="field"><label for="fNote">Notiz (steht im Stempel und im Dateinamen)</label>
@@ -182,7 +75,6 @@ dialog h3{font:700 13px var(--f-display);letter-spacing:.16em;text-transform:upp
       <div class="warnline" id="haWarn" hidden></div>
     </div>
   </section>
-
   <section class="panel preview" id="previewPanel" hidden>
     <span class="label">Letztes Foto</span>
     <img id="previewImg" alt="Letztes Foto mit Stempel">
@@ -191,7 +83,6 @@ dialog h3{font:700 13px var(--f-display);letter-spacing:.16em;text-transform:upp
       <button class="btn primary" id="btnUpload">Jetzt hochladen</button>
     </div>
   </section>
-
   <section class="panel">
     <div class="row"><span class="label">Verlauf</span><button class="link" id="btnRetry">Alle wartenden hochladen</button></div>
     <div class="row"><span></span><button class="link" id="btnClear">Verlauf leeren</button></div>
@@ -202,16 +93,13 @@ dialog h3{font:700 13px var(--f-display);letter-spacing:.16em;text-transform:upp
     <ul class="list" id="list"><li class="empty">Noch keine Fotos. Tippe unten auf „Foto aufnehmen“.</li></ul>
   </section>
 </div>
-
 <div class="shutter">
   <button id="btnShoot"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Foto aufnehmen</button>
   <input type="file" id="fileIn" accept="image/*" capture="environment" hidden>
 </div>
-
 <dialog id="dlg">
   <form method="dialog" id="setForm">
     <div class="row"><h2>Einstellungen</h2><button class="iconbtn" value="close" aria-label="Schließen">✕</button></div>
-
     <h3>Ablage in Teams</h3>
     <div class="field"><label for="sTarget">Name des Zielordners im Team</label><input type="text" id="sTarget" placeholder="Bilder und Doku"></div>
     <p class="help">Das Tool sucht diesen Ordner im Team der gewählten Kostenstelle (in der Dateiablage und in den Kanal-Ordnern) und merkt ihn sich.</p>
@@ -231,77 +119,58 @@ dialog h3{font:700 13px var(--f-display);letter-spacing:.16em;text-transform:upp
       <button type="button" class="btn" id="btnTest">Zielordner prüfen</button>
     </div>
     <div class="status" id="setStatus"></div>
-
     <h3>Fotos</h3>
     <div class="field"><label for="sSeries">Fotoreihen</label><textarea id="sSeries" rows="9"></textarea></div>
     <button type="button" class="link" id="seriesReset">Fotoreihen auf Vorgabe zurücksetzen</button>
     <p class="help">Eine Zeile mit <code>#</code> beginnt eine neue Fotoreihe, darunter ein Schritt pro Zeile. Eine Reihe mit nur einem Schritt ist ein Einzel-Nachweis ohne Schrittfolge. Mit <code>| Stärke (cm)</code> hinter einem Schritt fragt die App einen Messwert ab, der im Foto und im Dateinamen steht.</p>
     <label class="check"><input type="checkbox" id="sOrig"> Originalfoto ohne Stempel zusätzlich hochladen (Unterordner „Originale“)</label>
     <label class="check"><input type="checkbox" id="sLogo"> Firmenlogo im Stempel</label>
-
     <h3>Karte &amp; Adresse</h3>
     <div class="field"><label for="sKey">Google-Maps-API-Schlüssel (optional)</label><input type="password" id="sKey" placeholder="leer = OpenStreetMap"></div>
     <p class="help">Mit Schlüssel: Google-Karte (Maps Static API) und Google-Adresssuche (Geocoding API). Ohne Schlüssel: OpenStreetMap, kostenlos.</p>
     <div class="field"><label for="sMap">Kartenart (nur Google)</label><select id="sMap"><option value="roadmap">Straßenkarte</option><option value="hybrid">Satellit mit Straßen</option><option value="satellite">Satellit</option></select></div>
     <div class="field"><label for="sQual">Bildqualität</label><select id="sQual"><option value="0.92">Hoch (große Dateien)</option><option value="0.85">Standard</option><option value="0.75">Klein (schneller Upload)</option></select></div>
-
     <div class="btns"><button class="btn primary" value="save" id="btnSave">Speichern</button></div>
   </form>
 </dialog>
-
-<script>
-"use strict";
-/* =====================================================================
-   ZENTRALE EINSTELLUNGEN – EINMAL VOM ADMIN AUSFÜLLEN
-   Was hier steht, gilt für alle Nutzer. Die Nutzer sehen diese Felder
-   nicht mehr, sie melden sich nur an und wählen die Kostenstelle.
-   Client-ID und Tenant-ID sind keine Geheimnisse.
-   ===================================================================== */
+<script>"use strict";
 const CONFIG={
-  clientId:"7674477e-d66a-459c-ad83-69af456d0cd3", // Anwendungs-ID (Client-ID) aus Microsoft Entra
-  tenantId:"10af70ff-f844-4dfa-832f-b8f451b23e55", // Verzeichnis-ID (Tenant-ID) aus Microsoft Entra
-  targetName:"Bilder und Doku", // Zielordner im Team
-  folderDefault:"street",      // "street" = Unterordner pro Straße, "root" = direkt in den Zielordner
-  dayFolder:false,             // zusätzlich Unterordner pro Tag
-  autoUpload:true,             // automatisch hochladen
-  notifyOwners:true,           // Team-Besitzer per Teams-Chat über neue Fotos informieren
-  notifyTime:"15:00",          // Uhrzeit der täglichen Zusammenfassung
-  domain:"h-s-bau.de",         // nur Konten dieser Firmen-Domain zulassen
-  adminName:"Marco Schiewe",   // Ansprechpartner, der in Hinweisen genannt wird
-  gkey:"",                     // optional: Google-Maps-API-Schlüssel
-  // Fotoreihen: "# Name" beginnt eine Reihe, "Schritt | Messwert (Einheit)" fragt einen Wert ab
-  series:`# Hausanschluss Westnetz
+clientId:"7674477e-d66a-459c-ad83-69af456d0cd3",
+tenantId:"10af70ff-f844-4dfa-832f-b8f451b23e55",
+targetName:"Bilder und Doku",
+folderDefault:"street",
+dayFolder:false,
+autoUpload:true,
+notifyOwners:true,
+notifyTime:"15:00",
+domain:"h-s-bau.de",
+adminName:"Marco Schiewe",
+gkey:"",
+series:`# Hausanschluss Westnetz
 Abzweig im Graben
 Einführung außen am Haus
 Einführung innen im Haus
 # Nachweis Oberflächenstärke
 Oberflächenstärke | Stärke (cm)`,
-  uploadOriginal:true,         // Originalfoto zusätzlich hochladen
-  logoInStamp:true             // Firmenlogo im Stempel
+uploadOriginal:true,
+logoInStamp:true
 };
-/* ===================================================================== */
-
-/* ---------- Speicher ---------- */
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const DEF={kst:null,teams:[],folders:{},targetName:"Bilder und Doku",folderDefault:"street",prefs:{},subfolders:{},dayFolder:false,clientId:"",tenantId:"organizations",gkey:"",mapType:"roadmap",autoUpload:true,quality:0.85,seriesText:"",uploadOriginal:true,logoInStamp:true};
 const LOCKED=!!CONFIG.clientId;
 let S=Object.assign({},DEF,{targetName:CONFIG.targetName||DEF.targetName,folderDefault:CONFIG.folderDefault||"street",dayFolder:CONFIG.dayFolder,autoUpload:CONFIG.autoUpload,seriesText:CONFIG.series||"",uploadOriginal:CONFIG.uploadOriginal,logoInStamp:CONFIG.logoInStamp},LS.get("bk.settings",{}));
 if(LOCKED){S.clientId=CONFIG.clientId.trim();S.tenantId=(CONFIG.tenantId||"organizations").trim()}
 if(CONFIG.gkey)S.gkey=CONFIG.gkey;
-/* Fotoreihen: zentrale Vorgabe gilt, außer der Nutzer hat sie selbst geändert */
 if(!S.seriesCustom)S.seriesText=CONFIG.series||"";
 if(!S.targetCustom&&S.targetName!==CONFIG.targetName){S.targetName=CONFIG.targetName;S.folders={};S.subfolders={}}
 const saveS=()=>LS.set("bk.settings",S);
 const $=s=>document.querySelector(s);
-
 const DB={mem:new Map(),db:null,failed:false,
-  async open(){if(this.db||this.failed)return this.db;try{this.db=await new Promise((res,rej)=>{const r=indexedDB.open("baustellenkamera",1);r.onupgradeneeded=()=>r.result.createObjectStore("items",{keyPath:"id"});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}catch(e){this.failed=true}return this.db},
-  async run(mode,fn){const db=await this.open();if(!db)return fn(null);return new Promise((res,rej)=>{const t=db.transaction("items",mode);const rq=fn(t.objectStore("items"));t.oncomplete=()=>res(rq&&rq.result);t.onerror=()=>rej(t.error)})},
-  put(it){return this.run("readwrite",s=>s?s.put(it):void this.mem.set(it.id,it))},
-  async all(){const r=await this.run("readonly",s=>s?s.getAll():null);return r||[...this.mem.values()]},
-  del(id){return this.run("readwrite",s=>s?s.delete(id):void this.mem.delete(id))}};
-
-/* ---------- Hilfsfunktionen ---------- */
+async open(){if(this.db||this.failed)return this.db;try{this.db=await new Promise((res,rej)=>{const r=indexedDB.open("baustellenkamera",1);r.onupgradeneeded=()=>r.result.createObjectStore("items",{keyPath:"id"});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}catch(e){this.failed=true}return this.db},
+async run(mode,fn){const db=await this.open();if(!db)return fn(null);return new Promise((res,rej)=>{const t=db.transaction("items",mode);const rq=fn(t.objectStore("items"));t.oncomplete=()=>res(rq&&rq.result);t.onerror=()=>rej(t.error)})},
+put(it){return this.run("readwrite",s=>s?s.put(it):void this.mem.set(it.id,it))},
+async all(){const r=await this.run("readonly",s=>s?s.getAll():null);return r||[...this.mem.values()]},
+del(id){return this.run("readwrite",s=>s?s.delete(id):void this.mem.delete(id))}};
 const pad=n=>String(n).padStart(2,"0");
 const fmtDate=d=>`${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()}`;
 const fmtTime=d=>`${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
@@ -314,7 +183,6 @@ function setChip(id,text,state){const c=$(id);c.className="chip"+(state?" "+stat
 function dist(a,b){const R=6371000,r=Math.PI/180,dl=(b.lat-a.lat)*r,dn=(b.lon-a.lon)*r;const x=Math.sin(dl/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
 /* Dateiname: Umlaute bleiben erhalten, nur in Teams/OneDrive verbotene Zeichen werden ersetzt */
 const safe=s=>(s||"").normalize("NFC").replace(/["*:<>?\/\\|#%~&{}]+/g,"").replace(/\s+/g,"-").replace(/-+/g,"-").replace(/^[-.]+|[-.]+$/g,"").slice(0,60);
-
 /* ---------- UTM (WGS84 ≈ ETRS89) ---------- */
 function toUTM(lat,lon){
   let zone=Math.floor((lon+180)/6)+1;
@@ -332,7 +200,6 @@ function toUTM(lat,lon){
   if(lat<0)No+=10000000;
   return {zone,band,E,N:No};
 }
-
 /* ---------- GPS ---------- */
 let pos=null,lastGeo=null,geoBusy=false;
 function startGPS(){
@@ -350,7 +217,6 @@ function renderPos(){
   $("#acc").textContent=`± ${acc} m`;
   setChip("#chipGps",`GPS ± ${acc} m`,acc<=15?"ok":acc<=50?"warn":"bad");
 }
-
 /* ---------- Adresse ---------- */
 let addr=LS.get("bk.addr",{street:"",no:"",zip:"",city:""}),addrManual=LS.get("bk.addrManual",false);
 const AF={street:"#fStreet",no:"#fNo",zip:"#fZip",city:"#fCity"};
@@ -378,7 +244,6 @@ async function reverseGeocode(lat,lon){
   const a=(await r.json()).address||{};
   return {street:a.road||a.pedestrian||a.footway||a.path||a.construction||"",no:a.house_number||"",zip:a.postcode||"",city:a.city||a.town||a.village||a.municipality||""};
 }
-
 /* ---------- Notiz, Fotoreihen & Ordnerwahl pro Kostenstelle ---------- */
 S.note=LS.get("bk.note","");S.meas="";
 if(!S.prefs)S.prefs={};if(!S.subfolders)S.subfolders={};
@@ -427,7 +292,6 @@ $("#fNote").addEventListener("input",e=>{S.note=e.target.value;LS.set("bk.note",
 $("#noteClear").onclick=()=>{S.note="";$("#fNote").value="";LS.set("bk.note","");$("#fNote").focus()};
 $("#seriesSel").addEventListener("change",e=>{curPref().series=e.target.value;saveS();renderHA();renderTarget()});
 $("#fMeas").addEventListener("input",e=>{S.meas=e.target.value;const ser=curSeries();if(ser){const st=curStep(ser);const w=[];if(/haus/i.test(ser.name)&&!(addr.no||"").trim())w.push("Hausnummer fehlt – bitte oben eintragen.");if(st.label&&!S.meas.trim())w.push(`${st.label} eintragen.`);$("#haWarn").textContent=w.join(" ");$("#haWarn").hidden=!w.length}});
-
 /* Ordner in „Bilder & Doku“ */
 function renderFolders(){
   const sel=$("#folderSel");if(!sel)return;sel.textContent="";const pr=curPref();
@@ -447,7 +311,6 @@ async function loadSubfolders(gid,interactive){
   saveS();if(S.kst&&S.kst.id===gid)renderFolders();
 }
 $("#folderSel").addEventListener("change",e=>{curPref().folder=e.target.value;saveS();renderTarget()});
-
 /* Neuen Ordner in „Bilder & Doku“ anlegen */
 function showNewFolder(on){$("#newFolderBox").hidden=!on;$("#newFolderBtn").hidden=on;$("#newFolderMsg").textContent="";
   if(on){$("#newFolderName").value="";setTimeout(()=>$("#newFolderName").focus(),50)}}
@@ -485,7 +348,6 @@ $("#newFolderOk").onclick=async()=>{
 };
 $("#reloadFolders").onclick=async()=>{if(!S.kst){toast("Bitte zuerst die Kostenstelle wählen.");return}
   try{await loadSubfolders(S.kst.id,true);toast("Ordner aktualisiert")}catch(e){toast(e.message)}};
-
 /* ---------- Kompass ---------- */
 let heading=null,headingAtHide=null,hx=0,hy=0,lastChip=0,gotOri=false;
 function camHeading(al,be,ga){
@@ -518,7 +380,6 @@ function initCompass(){
   else setChip("#chipCompass","Kein Kompass","warn");
 }
 document.addEventListener("visibilitychange",()=>{if(document.hidden)headingAtHide=heading});
-
 /* ---------- Karte ---------- */
 const MAPZ=17;
 function loadImg(src,ms=8000){return new Promise((res,rej)=>{const i=new Image();i.crossOrigin="anonymous";const to=setTimeout(()=>{i.src="";rej(new Error("timeout"))},ms);i.onload=()=>{clearTimeout(to);res(i)};i.onerror=()=>{clearTimeout(to);rej(new Error("load"))};i.src=src})}
@@ -533,7 +394,6 @@ async function getMap(lat,lon){
   }
   await Promise.all(jobs);return {img:c,src:"© OpenStreetMap"};
 }
-
 /* ---------- Stempel zeichnen ---------- */
 function rr(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
 function northArrow(g,cx,cy,R,rot,withRing){
@@ -551,7 +411,6 @@ async function drawStamp(g,W,H,d){
   const u=Math.min(W,H)/100,m=2.4*u;
   /* Nordpfeil oben rechts (nur mit Kompass sinnvoll) */
   if(d.h!=null)northArrow(g,W-m-7*u,m+7*u,7*u,-d.h,true);
-
   /* Karte unten links */
   const ms=Math.round(Math.min(W,H)*0.34),mx=m,my=H-m-ms;
   if(d.p){
@@ -572,7 +431,6 @@ async function drawStamp(g,W,H,d){
     g.strokeStyle="rgba(255,255,255,.9)";g.lineWidth=0.35*u;rr(g,mx,my,ms,ms,1.2*u);g.stroke();
     northArrow(g,mx+ms-4.2*u,my+4.6*u,3.4*u,0,true);
   }
-
   /* Datenblock unten rechts */
   const L=[];
   if(d.kst){const nm=d.kst.name.length>38?d.kst.name.slice(0,37)+"…":d.kst.name;L.push({t:d.kst.kst?`KST ${d.kst.kst}${nm?" · "+nm:""}`:nm,w:700,s:3.4,c:"#e8a038"})}
@@ -602,7 +460,6 @@ async function drawStamp(g,W,H,d){
     if(lhgt>3*u){g.drawImage(logo,W-m-lw,by-lhgt-0.8*u,lw,lhgt)}}
 }
 function wrapText(t,max){const out=[];let line="";for(const w of t.split(/\s+/)){if((line+" "+w).trim().length>max&&line){out.push(line);line=w}else line=(line+" "+w).trim()}if(line)out.push(line);return out.slice(0,3)}
-
 /* ---------- EXIF (GPS, Zeit, Richtung) ---------- */
 function dms(v){v=Math.abs(v);const d=Math.floor(v),mf=(v-d)*60,m=Math.floor(mf),s=Math.round((mf-m)*60*1000);return [[d,1],[m,1],[s,1000]]}
 function addExif(url,d){
@@ -616,7 +473,6 @@ function addExif(url,d){
   }catch(e){return url}
 }
 function urlToBlob(u){const [h,b]=u.split(","),bin=atob(b),a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return new Blob([a],{type:"image/jpeg"})}
-
 /* ---------- Aufnahme ---------- */
 $("#btnShoot").onclick=()=>$("#fileIn").click();
 $("#fileIn").addEventListener("change",async e=>{
@@ -667,7 +523,6 @@ $("#btnShare").onclick=async()=>{
 };
 $("#btnUpload").onclick=()=>processQueue(true);
 $("#btnRetry").onclick=()=>processQueue(true);
-
 /* ---------- Verlauf ---------- */
 /* Verlauf leeren */
 $("#btnClear").onclick=async()=>{const items=await DB.all();if(!items.length){toast("Der Verlauf ist schon leer.");return}
@@ -704,7 +559,6 @@ async function renderList(){
   const n=items.filter(i=>i.status!=="hochgeladen").length;setChip("#chipQueue",`${n} wartend`,n?"warn":"ok");
 }
 async function prune(){const items=(await DB.all()).filter(i=>i.status==="hochgeladen").sort((a,b)=>b.created-a.created);for(const it of items.slice(20))await DB.del(it.id)}
-
 /* ---------- Microsoft-Anmeldung & Upload ---------- */
 const SCOPES=["Files.ReadWrite.All","Team.ReadBasic.All"];let msalApp=null,account=null,wrongAccount="";
 /* Immer Kontoauswahl zeigen und Firmen-Domain vorschlagen */
@@ -744,7 +598,6 @@ function updateCloud(){
   else setChip("#chipCloud",`Teams: KST ${S.kst.kst||S.kst.name}`,"ok");
   $("#btnLogin").textContent=account?`Abmelden (${account.username})`:"Bei Microsoft anmelden";
 }
-
 /* ---------- Kostenstellen (= Teams) ---------- */
 function parseTeam(t){const m=t.displayName.match(/^\s*(\d{4,})[\s_\-–]*(.*)$/);return {id:t.id,kst:m?m[1]:"",name:m?(m[2]||t.displayName):t.displayName}}
 async function loadTeams(interactive){
@@ -772,7 +625,6 @@ function renderTarget(){
 $("#kstSel").addEventListener("change",e=>{showNewFolder(false);S.kst=S.teams.find(t=>t.id===e.target.value)||null;saveS();renderFolders();renderHA();renderTarget();renderProject();updateCloud();if(S.kst&&account)loadSubfolders(S.kst.id,false).catch(err=>{$("#kstTarget").textContent=err.message})});
 $("#reloadTeams").onclick=async()=>{if(!msalApp){toast("Bitte zuerst die Anmeldung einrichten.");openSettings();return}try{await loadTeams(true);toast(`${S.teams.length} Teams geladen`)}catch(e){toast(e.message)}};
 const folderName=s=>(s||"").normalize("NFC").replace(/["*:<>?\/\\|]+/g,"").replace(/\s+/g," ").trim().replace(/[.\s]+$/,"").slice(0,80);
-
 /* Zielordner im Team suchen: Ablage-Wurzel → Kanal-Ordner → Suche */
 async function findTarget(gid,interactive){
   const c=S.folders[gid];if(c&&c.name===S.targetName)return c;
@@ -870,7 +722,6 @@ async function sendNotifications(){
   scheduleNotify();
 }
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)scheduleNotify()});
-
 let busy=false;
 async function processQueue(interactive){
   if(busy)return;
@@ -890,7 +741,6 @@ async function processQueue(interactive){
   }finally{busy=false;await prune();await renderList()}
 }
 window.addEventListener("online",()=>{maybeGeocode();if(S.autoUpload)processQueue()});
-
 /* ---------- Einstellungen ---------- */
 const dlg=$("#dlg");
 function openSettings(){
@@ -943,7 +793,6 @@ $("#btnTest").onclick=async()=>{
   catch(e){$("#setStatus").textContent="Fehler: "+e.message}
 };
 $("#copyUri").onclick=async()=>{try{await navigator.clipboard.writeText(redirectUri());toast("Kopiert")}catch(e){const r=document.createRange();r.selectNodeContents($("#redirUri"));const s=getSelection();s.removeAllRanges();s.addRange(r)}};
-
 /* ---------- Start ---------- */
 (async function(){
   if("serviceWorker" in navigator&&location.protocol==="https:"){try{navigator.serviceWorker.register("sw.js")}catch(e){}}
@@ -953,7 +802,6 @@ $("#copyUri").onclick=async()=>{try{await navigator.clipboard.writeText(redirect
   if(S.autoUpload&&account)processQueue();
   if(account)scheduleNotify();
   if(!S.clientId)openSettings();
-})();
-</script>
+})();</script>
 </body>
 </html>
